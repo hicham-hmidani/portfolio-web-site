@@ -7,6 +7,7 @@ import Projects from './components/Projects';
 import PromptEngineering from './components/PromptEngineering';
 import WorkWithMe from './components/WorkWithMe';
 import FeaturedService from './components/FeaturedService';
+import Blog from './components/Blog';
 import Education from './components/Education';
 import Contact from './components/Contact';
 
@@ -15,7 +16,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [titleIndex, setTitleIndex] = useState(0);
 
-  const titles = ["Junior Data Analyst", "AI Prompt Engineer", "Database Administrator-MI", "Junior Data Scientist"];
+  const titles = ["Junior Data Analyst/Scientist", "AI Prompt Engineer", "Database Administrator-MI"];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -39,6 +40,7 @@ export default function App() {
     { name: 'Projects', href: '#projects' },
     { name: 'AI Prompts', href: '#prompt-engineering' },
     { name: 'Hire Me', href: '#work-with-me' },
+    { name: 'Blog', href: '#blog' },
     { name: 'Education', href: '#education' },
     { name: 'Contact', href: '#contact' },
   ];
@@ -297,6 +299,9 @@ export default function App() {
 
       {/* Featured Service Section */}
       <FeaturedService />
+
+      {/* Blog Section */}
+      <Blog />
 
       {/* Education Section */}
       <Education />
