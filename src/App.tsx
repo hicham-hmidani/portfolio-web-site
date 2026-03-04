@@ -158,7 +158,7 @@ export default function App() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg text-slate-600 mb-8 max-w-2xl leading-relaxed"
           >
-            A diligent and detail-oriented data analyst holding a Master's degree in Computer Science and Complex Systems Engineering. I have a solid foundation in statistical analysis, data analytics, and machine learning techniques.
+            A diligent and detail-oriented Junior Data Analyst/Scientist, AI Prompt Engineer, and Database Administrator holding a Master's degree in Computer Science and Complex Systems Engineering. I have a solid foundation in statistical analysis, machine learning, prompt engineering, and domain name investing.
           </motion.p>
 
           <motion.div 
