@@ -226,13 +226,20 @@ export default function App() {
             </svg>
 
             {/* Profile Image */}
-            <div className="absolute inset-4 rounded-full overflow-hidden border-2 border-white shadow-2xl shadow-slate-200/50 bg-slate-100">
-               <img 
-                 src="https://github.com/hicham-hmidani.png" 
-                 alt="Hicham Hmidani" 
-                 className="w-full h-full object-cover transition-all duration-700" 
-                 referrerPolicy="no-referrer"
-               />
+            <div className="absolute inset-4 rounded-full overflow-hidden border-2 border-white shadow-2xl shadow-slate-200/50 bg-slate-100 relative">
+              <AnimatePresence mode="wait">
+                <motion.img 
+                  key={titles[titleIndex] === "AI Prompt Engineer" ? "promptbase" : "github"}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  transition={{ duration: 0.5 }}
+                  src={titles[titleIndex] === "AI Prompt Engineer" ? "/promptbase-profile.png" : "https://github.com/hicham-hmidani.png"} 
+                  alt="Hicham Hmidani" 
+                  className="absolute inset-0 w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                />
+              </AnimatePresence>
             </div>
 
             {/* Floating skill badges */}

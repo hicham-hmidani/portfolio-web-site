@@ -219,8 +219,10 @@ export default function Blog() {
     return true;
   });
 
+  const isAnyModalOpen = selectedPost || isViewingAll || isGenerateModalOpen;
+
   return (
-    <section id="blog" className="relative z-10 py-24 bg-white border-y border-slate-200">
+    <section id="blog" className={`relative py-24 bg-white border-y border-slate-200 ${isAnyModalOpen ? 'z-[100]' : 'z-10'}`}>
       <div className="container mx-auto px-6 relative z-10">
         <div className="mb-16 text-center">
           <motion.h2 
