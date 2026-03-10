@@ -24,7 +24,7 @@ const initialPosts: BlogPost[] = [
     categoryColor: "text-blue-700 bg-blue-50 border-blue-200",
     readTime: "6 min read",
     author: "Hicham Hmidani",
-    avatar: "https://github.com/hicham-hmidani.png",
+    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
     date: "Oct 12, 2023"
   },
   {
@@ -34,7 +34,7 @@ const initialPosts: BlogPost[] = [
     categoryColor: "text-yellow-700 bg-yellow-50 border-yellow-200",
     readTime: "8 min read",
     author: "Hicham Hmidani",
-    avatar: "https://github.com/hicham-hmidani.png",
+    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
     date: "Nov 05, 2023"
   },
   {
@@ -44,7 +44,7 @@ const initialPosts: BlogPost[] = [
     categoryColor: "text-orange-700 bg-orange-50 border-orange-200",
     readTime: "7 min read",
     author: "Hicham Hmidani",
-    avatar: "https://github.com/hicham-hmidani.png",
+    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
     date: "Dec 18, 2023"
   }
 ];
@@ -157,7 +157,7 @@ export default function Blog() {
         categoryColor: CATEGORY_COLORS[newCategory] || "text-slate-700 bg-slate-50 border-slate-200",
         readTime: data.readTime || "5 min read",
         author: "Hicham Hmidani",
-        avatar: "https://github.com/hicham-hmidani.png",
+        avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       };
 
@@ -219,10 +219,8 @@ export default function Blog() {
     return true;
   });
 
-  const isAnyModalOpen = selectedPost || isViewingAll || isGenerateModalOpen;
-
   return (
-    <section id="blog" className={`relative py-24 bg-white border-y border-slate-200 ${isAnyModalOpen ? 'z-[100]' : 'z-10'}`}>
+    <section id="blog" className="relative z-10 py-24 bg-white border-y border-slate-200">
       <div className="container mx-auto px-6 relative z-10">
         <div className="mb-16 text-center">
           <motion.h2 
