@@ -39,9 +39,9 @@ export default function App() {
     { name: 'Experience', href: '#experience' },
     { name: 'Projects', href: '#projects' },
     { name: 'AI Prompts', href: '#prompt-engineering' },
-    { name: 'Hire Me', href: '#work-with-me' },
     { name: 'Blog', href: '#blog' },
     { name: 'Education', href: '#education' },
+    { name: 'Hire Me', href: '#work-with-me' },
     { name: 'Contact', href: '#contact' },
   ];
 
@@ -294,9 +294,6 @@ export default function App() {
       {/* AI Prompt Engineering Section */}
       <PromptEngineering />
 
-      {/* Work With Me Section */}
-      <WorkWithMe />
-
       {/* Featured Service Section */}
       <FeaturedService />
 
@@ -305,6 +302,9 @@ export default function App() {
 
       {/* Education Section */}
       <Education />
+
+      {/* Work With Me Section */}
+      <WorkWithMe />
 
       {/* Contact Section */}
       <Contact />
