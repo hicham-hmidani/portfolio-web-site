@@ -1,7 +1,42 @@
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Phone, MapPin, Linkedin, Github, Send, Bot, Briefcase } from 'lucide-react';
 
+declare global {
+  interface Window {
+    emailjs: any;
+  }
+}
+
 export default function Contact() {
+  useEffect(() => {
+    const form = document.getElementById('contact-form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+        const status = document.getElementById('form-status') as HTMLParagraphElement;
+        if (btn && status) {
+          btn.innerText = '⏳ Sending...';
+          btn.disabled = true;
+          window.emailjs.sendForm('service_2a6qrp3', 'template_6niplid', this)
+            .then(() => {
+              btn.innerText = '✅ Message Sent!';
+              status.style.color = '#00d4d4';
+              status.innerText = 'Thank you! I will reply within 24 hours.';
+              (this as HTMLFormElement).reset();
+            }).catch((error: any) => {
+              btn.innerText = '❌ Failed — Try Again';
+              btn.disabled = false;
+              status.style.color = 'red';
+              status.innerText = 'Something went wrong. Please email me directly at hmidanihicham8@gmail.com';
+              console.error('EmailJS error:', error);
+            });
+        }
+      });
+    }
+  }, []);
+
   return (
     <section id="contact" className="relative z-10 container mx-auto px-6 py-24">
       {/* Subtle background pattern */}
@@ -133,26 +168,28 @@ export default function Contact() {
           transition={{ duration: 0.5 }}
         >
           <form 
-            onSubmit={(e) => e.preventDefault()} 
+            id="contact-form"
             className="p-8 rounded-3xl bg-white border border-slate-200 backdrop-blur-sm flex flex-col gap-6 shadow-sm"
           >
             <div className="flex flex-col gap-2">
-              <label htmlFor="name" className="text-sm font-medium text-slate-700">Your Name</label>
+              <label htmlFor="from_name" className="text-sm font-medium text-slate-700">Your Name</label>
               <input 
                 type="text" 
-                id="name" 
-                placeholder="John Doe"
+                name="from_name" 
+                id="from_name"
+                placeholder="Your Name"
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
                 required
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label htmlFor="email" className="text-sm font-medium text-slate-700">Your Email</label>
+              <label htmlFor="from_email" className="text-sm font-medium text-slate-700">Your Email</label>
               <input 
                 type="email" 
-                id="email" 
-                placeholder="john@example.com"
+                name="from_email" 
+                id="from_email"
+                placeholder="Your Email"
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
                 required
               />
@@ -161,21 +198,24 @@ export default function Contact() {
             <div className="flex flex-col gap-2">
               <label htmlFor="message" className="text-sm font-medium text-slate-700">Your Message</label>
               <textarea 
-                id="message" 
-                rows={5}
-                placeholder="Hello Hicham, I'd like to talk about..."
+                name="message" 
+                id="message"
+                placeholder="Your Message" 
+                rows={6} 
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all resize-none"
                 required
               ></textarea>
             </div>
 
             <button 
-              type="submit"
+              type="submit" 
+              id="submit-btn"
               className="mt-2 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md shadow-teal-600/20"
             >
               Send Message
               <Send className="w-5 h-5" />
             </button>
+            <p id="form-status" style={{ marginTop: '10px' }}></p>
           </form>
         </motion.div>
 
