@@ -1,7 +1,31 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ExternalLink, CheckCircle2, FolderOpen, Bot, LayoutGrid, Star } from 'lucide-react';
+import { ExternalLink, CheckCircle2, FolderOpen, Bot, LayoutGrid, Star, Eye, TrendingUp, DollarSign } from 'lucide-react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase-config';
+
+interface Prompt {
+  id: string;
+  title: string;
+  model: string;
+  price: number;
+  views: number;
+  sales: number;
+  url: string;
+  featured: boolean;
+}
 
 export default function PromptEngineering() {
+  const [featuredPrompts, setFeaturedPrompts] = useState<Prompt[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "marketplace_items"), where("platform", "==", "PromptBase"), where("featured", "==", true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setFeaturedPrompts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Prompt[]);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const platforms = [
     { name: 'DALL-E', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', dot: '🟡' },
     { name: 'Leonardo AI', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: '🔵' },
@@ -20,7 +44,6 @@ export default function PromptEngineering() {
 
   return (
     <section id="prompt-engineering" className="relative z-10 py-24 bg-white border-y border-slate-200">
-      {/* Background glow specific to this section */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-[400px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="container mx-auto px-6 relative z-10">
@@ -45,6 +68,69 @@ export default function PromptEngineering() {
           </motion.p>
         </div>
 
+        {/* Featured Prompts Grid */}
+        {featuredPrompts.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20 max-w-6xl mx-auto">
+            {featuredPrompts.map((prompt, index) => (
+              <motion.div
+                key={prompt.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4 group hover:border-teal-500/50 transition-all hover:shadow-xl hover:shadow-slate-200/50"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-teal-500/10 text-teal-600 border border-teal-500/20">
+                    <Bot className="w-6 h-6" />
+                  </div>
+                  <div className="flex items-center gap-1 text-yellow-500">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Featured</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-teal-600 transition-colors">{prompt.title}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded-md bg-white text-[10px] text-slate-500 border border-slate-200 uppercase font-bold tracking-wider">
+                      {prompt.model}
+                    </span>
+                    <span className="text-xs text-teal-600 font-bold">${prompt.price}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Views</p>
+                      <p className="text-sm font-bold text-slate-900">{prompt.views}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-teal-500" />
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Sales</p>
+                      <p className="text-sm font-bold text-slate-900">{prompt.sales}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <a 
+                  href={prompt.url} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 font-bold text-sm hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all"
+                >
+                  View on PromptBase
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -52,10 +138,8 @@ export default function PromptEngineering() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="max-w-4xl mx-auto bg-slate-50 border border-slate-200 rounded-3xl p-8 md:p-12 backdrop-blur-md shadow-xl shadow-slate-200/50 relative overflow-hidden group"
         >
-          {/* Card inner glow */}
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-teal-500/10 blur-[80px] rounded-full pointer-events-none transition-opacity duration-500 group-hover:opacity-100 opacity-50"></div>
 
-          {/* Profile Header Card */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10 relative z-10 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-5">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-yellow-500 p-0.5 shadow-lg shadow-slate-200 shrink-0">
@@ -94,7 +178,6 @@ export default function PromptEngineering() {
             </div>
           </div>
 
-          {/* Stats Row (4 animated counter boxes) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 relative z-10">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -153,7 +236,6 @@ export default function PromptEngineering() {
             </motion.div>
           </div>
 
-          {/* Platforms Badge Row */}
           <div className="relative z-10 mb-10">
             <p className="text-sm font-medium text-slate-500 mb-4 uppercase tracking-wider text-center md:text-left">Platforms Covered</p>
             <div className="flex flex-wrap justify-center md:justify-start gap-3">
@@ -168,7 +250,6 @@ export default function PromptEngineering() {
             </div>
           </div>
 
-          {/* Categories Tag Cloud */}
           <div className="relative z-10 mb-12">
             <p className="text-sm font-medium text-slate-500 mb-4 uppercase tracking-wider text-center md:text-left">Specialized Categories</p>
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
@@ -183,7 +264,6 @@ export default function PromptEngineering() {
             </div>
           </div>
 
-          {/* CTA Button */}
           <div className="relative z-10 text-center md:text-left mt-8">
             <a 
               href="https://promptbase.com/profile/camih8" 
@@ -195,7 +275,6 @@ export default function PromptEngineering() {
               <ExternalLink className="w-5 h-5" />
             </a>
           </div>
-
         </motion.div>
       </div>
     </section>

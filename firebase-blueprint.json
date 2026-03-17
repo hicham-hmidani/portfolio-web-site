@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "A blog post entry",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string", "description": "Markdown content" },
+        "readTime": { "type": "string" },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "published"]
+    },
+    "PortfolioContent": {
+      "title": "Portfolio Content",
+      "description": "Static content for portfolio sections",
+      "type": "object",
+      "properties": {
+        "section": { "type": "string" },
+        "data": { "type": "object" }
+      }
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A portfolio project",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "githubUrl": { "type": "string" },
+        "stats": { "type": "object" },
+        "featured": { "type": "boolean" }
+      }
+    },
+    "ContactMessage": {
+      "title": "Contact Message",
+      "description": "Message from contact form",
+      "type": "object",
+      "properties": {
+        "from_name": { "type": "string" },
+        "from_email": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "receivedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MarketplaceItem": {
+      "title": "Marketplace Item",
+      "description": "Item sold on marketplace platforms",
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "enum": ["promptbase", "upwork"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "string" },
+        "views": { "type": "number" },
+        "sales": { "type": "number" },
+        "link": { "type": "string" },
+        "featured": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "blog_posts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Collection of blog posts"
+    },
+    "portfolio_content/{sectionId}": {
+      "schema": "PortfolioContent",
+      "description": "Collection for section-specific content"
+    },
+    "projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of portfolio projects"
+    },
+    "contact_messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Collection of messages from the contact form"
+    },
+    "marketplace_items/{itemId}": {
+      "schema": "MarketplaceItem",
+      "description": "Collection of marketplace listings"
+    }
+  }
+}

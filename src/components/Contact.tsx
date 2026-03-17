@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Phone, MapPin, Linkedin, Github, Send, Bot, Briefcase } from 'lucide-react';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase-config';
 
 declare global {
   interface Window {
@@ -9,33 +11,70 @@ declare global {
 }
 
 export default function Contact() {
+  const [contact, setContact] = useState({
+    email: 'hmidanihicham8@gmail.com',
+    phone: '+212 631649374',
+    location: 'Ouarzazate, Morocco',
+    socials: {
+      linkedin: 'https://linkedin.com/in/hicham-hmidani-b55a5521b/',
+      github: 'https://github.com/hicham-hmidani',
+      promptbase: 'https://promptbase.com/profile/camih8',
+      upwork: 'https://www.upwork.com/'
+    }
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'portfolio_content', 'contact'), (doc) => {
+      if (doc.exists()) setContact(doc.data() as any);
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     const form = document.getElementById('contact-form');
     if (form) {
-      form.addEventListener('submit', function(e) {
+      form.addEventListener('submit', async function(e) {
         e.preventDefault();
         const btn = document.getElementById('submit-btn') as HTMLButtonElement;
         const status = document.getElementById('form-status') as HTMLParagraphElement;
+        
+        const formData = new FormData(this as HTMLFormElement);
+        const from_name = formData.get('from_name') as string;
+        const from_email = formData.get('from_email') as string;
+        const message = formData.get('message') as string;
+
         if (btn && status) {
           btn.innerText = '⏳ Sending...';
           btn.disabled = true;
-          window.emailjs.sendForm('service_2a6qrp3', 'template_6niplid', this)
-            .then(() => {
-              btn.innerText = '✅ Message Sent!';
-              status.style.color = '#00d4d4';
-              status.innerText = 'Thank you! I will reply within 24 hours.';
-              (this as HTMLFormElement).reset();
-            }).catch((error: any) => {
-              btn.innerText = '❌ Failed — Try Again';
-              btn.disabled = false;
-              status.style.color = 'red';
-              status.innerText = 'Something went wrong. Please email me directly at hmidanihicham8@gmail.com';
-              console.error('EmailJS error:', error);
+
+          try {
+            // Save to Firestore
+            await addDoc(collection(db, "contact_messages"), {
+              from_name,
+              from_email,
+              message,
+              read: false,
+              receivedAt: serverTimestamp()
             });
+
+            // Send via EmailJS
+            await window.emailjs.sendForm('service_2a6qrp3', 'template_6niplid', this);
+
+            btn.innerText = '✅ Message Sent!';
+            status.style.color = '#00d4d4';
+            status.innerText = 'Thank you! I will reply within 24 hours.';
+            (this as HTMLFormElement).reset();
+          } catch (error: any) {
+            btn.innerText = '❌ Failed — Try Again';
+            btn.disabled = false;
+            status.style.color = 'red';
+            status.innerText = `Something went wrong. Please email me directly at ${contact.email}`;
+            console.error('Submission error:', error);
+          }
         }
       });
     }
-  }, []);
+  }, [contact.email]);
 
   return (
     <section id="contact" className="relative z-10 container mx-auto px-6 py-24">
@@ -85,8 +124,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-500 mb-1">Email</p>
-                  <a href="mailto:hmidanihicham8@gmail.com" className="text-slate-900 hover:text-teal-600 transition-colors break-all">
-                    hmidanihicham8@gmail.com
+                  <a href={`mailto:${contact.email}`} className="text-slate-900 hover:text-teal-600 transition-colors break-all">
+                    {contact.email}
                   </a>
                 </div>
               </div>
@@ -97,8 +136,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-500 mb-1">Phone</p>
-                  <a href="tel:+212631649374" className="text-slate-900 hover:text-yellow-600 transition-colors">
-                    +212 631649374
+                  <a href={`tel:${contact.phone}`} className="text-slate-900 hover:text-yellow-600 transition-colors">
+                    {contact.phone}
                   </a>
                 </div>
               </div>
@@ -110,7 +149,7 @@ export default function Contact() {
                 <div>
                   <p className="text-sm font-medium text-slate-500 mb-1">Location</p>
                   <p className="text-slate-900">
-                    Ouarzazate, Morocco
+                    {contact.location}
                   </p>
                 </div>
               </div>
@@ -120,7 +159,7 @@ export default function Contact() {
               <p className="text-sm font-medium text-slate-500 mb-4">Connect with me</p>
               <div className="flex gap-4">
                 <a 
-                  href="https://linkedin.com/in/hicham-hmidani-b55a5521b/" 
+                  href={contact.socials.linkedin} 
                   target="_blank" 
                   rel="noreferrer"
                   className="p-3 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-yellow-50 hover:text-yellow-600 hover:border-yellow-200 transition-all shadow-sm"
@@ -129,7 +168,7 @@ export default function Contact() {
                   <Linkedin className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://github.com/hicham-hmidani" 
+                  href={contact.socials.github} 
                   target="_blank" 
                   rel="noreferrer"
                   className="p-3 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
@@ -138,7 +177,7 @@ export default function Contact() {
                   <Github className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://promptbase.com/profile/camih8" 
+                  href={contact.socials.promptbase} 
                   target="_blank" 
                   rel="noreferrer"
                   className="p-3 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 transition-all shadow-sm"
@@ -147,7 +186,7 @@ export default function Contact() {
                   <Bot className="w-5 h-5" />
                 </a>
                 <a 
-                  href="https://www.upwork.com/" 
+                  href={contact.socials.upwork} 
                   target="_blank" 
                   rel="noreferrer"
                   className="p-3 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"

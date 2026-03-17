@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: blog_posts
+    // Fields: title, category, excerpt, content, readTime, published, createdAt, updatedAt
+    //
+    // Collection: portfolio_content
+    // Fields: section, data
+    //
+    // Collection: projects
+    // Fields: title, description, tools, githubUrl, stats, featured
+    //
+    // Collection: contact_messages
+    // Fields: from_name, from_email, message, read, receivedAt
+    //
+    // Collection: marketplace_items
+    // Fields: platform, title, description, price, views, sales, link, featured
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "hmidanihicham8@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    // Blog Posts: Public can read if published, Admin has full access
+    match /blog_posts/{postId} {
+      allow read: if (resource != null && resource.data.published == true) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Portfolio Content: Admin only
+    match /portfolio_content/{sectionId} {
+      allow read: if true; // Public can read portfolio content
+      allow write: if isAdmin();
+    }
+
+    // Projects: Admin only write, public read
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Contact Messages: Public can create, Admin can read/write
+    match /contact_messages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Marketplace Items: Admin only write, public read
+    match /marketplace_items/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

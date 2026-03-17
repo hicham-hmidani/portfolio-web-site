@@ -1,10 +1,21 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Code2, Globe, Database, PieChart, Activity, BrainCircuit, Wrench, Sparkles } from 'lucide-react';
+import { Code2, Globe, Database, Activity, BrainCircuit, Sparkles } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase-config';
 
-const skillCategories = [
+const iconMap: Record<string, any> = {
+  "Data Analysis": <Activity className="w-6 h-6" />,
+  "Programming": <Code2 className="w-6 h-6" />,
+  "Databases": <Database className="w-6 h-6" />,
+  "Machine Learning / DL": <BrainCircuit className="w-6 h-6" />,
+  "Prompt Engineering": <Sparkles className="w-6 h-6" />,
+  "Web": <Globe className="w-6 h-6" />,
+};
+
+const defaultCategories = [
   {
     title: "Data Analysis",
-    icon: <Activity className="w-6 h-6" />,
     skills: ["Pandas", "NumPy", "Power BI", "Tableau", "Excel"],
     color: "text-teal-400",
     bgColor: "bg-teal-500/10",
@@ -12,7 +23,6 @@ const skillCategories = [
   },
   {
     title: "Programming",
-    icon: <Code2 className="w-6 h-6" />,
     skills: ["Python", "SQL", "R", "C/C++", "Java", "MATLAB"],
     color: "text-yellow-400",
     bgColor: "bg-yellow-500/10",
@@ -20,7 +30,6 @@ const skillCategories = [
   },
   {
     title: "Databases",
-    icon: <Database className="w-6 h-6" />,
     skills: ["Oracle", "MySQL", "NoSQL", "MongoDB"],
     color: "text-teal-400",
     bgColor: "bg-teal-500/10",
@@ -28,7 +37,6 @@ const skillCategories = [
   },
   {
     title: "Machine Learning / DL",
-    icon: <BrainCircuit className="w-6 h-6" />,
     skills: ["Scikit-learn", "TensorFlow", "Keras"],
     color: "text-yellow-400",
     bgColor: "bg-yellow-500/10",
@@ -36,7 +44,6 @@ const skillCategories = [
   },
   {
     title: "Prompt Engineering",
-    icon: <Sparkles className="w-6 h-6" />,
     skills: ["Leonardo.AI", "DALL-E", "GPT", "ChatGPT", "Chain-of-Thought"],
     color: "text-teal-400",
     bgColor: "bg-teal-500/10",
@@ -44,7 +51,6 @@ const skillCategories = [
   },
   {
     title: "Web",
-    icon: <Globe className="w-6 h-6" />,
     skills: ["HTML", "CSS"],
     color: "text-yellow-400",
     bgColor: "bg-yellow-500/10",
@@ -53,6 +59,27 @@ const skillCategories = [
 ];
 
 export default function Skills() {
+  const [categories, setCategories] = useState(defaultCategories);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'portfolio_content', 'skills'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        if (data.categories) {
+          // Merge with default styles
+          const merged = data.categories.map((cat: any, index: number) => ({
+            ...cat,
+            color: index % 2 === 0 ? "text-teal-400" : "text-yellow-400",
+            bgColor: index % 2 === 0 ? "bg-teal-500/10" : "bg-yellow-500/10",
+            borderColor: index % 2 === 0 ? "border-teal-500/20" : "border-yellow-500/20"
+          }));
+          setCategories(merged);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <section id="skills" className="relative z-10 container mx-auto px-6 py-24">
       <div className="mb-16 text-center">
@@ -77,7 +104,7 @@ export default function Skills() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {skillCategories.map((category, index) => (
+        {categories.map((category, index) => (
           <motion.div
             key={category.title}
             initial={{ opacity: 0, y: 20 }}
@@ -87,7 +114,7 @@ export default function Skills() {
             className={`p-6 rounded-2xl bg-white border border-slate-200 backdrop-blur-sm hover:bg-slate-50 transition-all duration-300 group hover:-translate-y-1 shadow-sm`}
           >
             <div className={`w-12 h-12 rounded-xl ${category.bgColor} ${category.color} flex items-center justify-center mb-6 border ${category.borderColor} group-hover:scale-110 transition-transform duration-300`}>
-              {category.icon}
+              {iconMap[category.title] || <Code2 className="w-6 h-6" />}
             </div>
             <h3 className="text-lg font-semibold text-slate-900 mb-4">{category.title}</h3>
             <div className="flex flex-wrap gap-2">

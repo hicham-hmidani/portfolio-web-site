@@ -1,7 +1,17 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Briefcase, Database, Code, LineChart, Sparkles } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase-config';
 
-const experiences = [
+const iconMap: Record<string, any> = {
+  "Database Management Administrator": <Database className="w-5 h-5" />,
+  "Freelance Data Analyst": <LineChart className="w-5 h-5" />,
+  "Freelance AI Prompt Engineer": <Sparkles className="w-5 h-5" />,
+  "Intern": <Code className="w-5 h-5" />,
+};
+
+const defaultExperiences = [
   {
     title: "Database Management Administrator",
     company: "Moroccan Ministry of Interior",
@@ -82,6 +92,29 @@ const experiences = [
 ];
 
 export default function Experience() {
+  const [experiences, setExperiences] = useState(defaultExperiences);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'portfolio_content', 'experience'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        if (data.entries) {
+          // Merge with default styles
+          const merged = data.entries.map((exp: any, index: number) => ({
+            ...exp,
+            icon: iconMap[exp.title] || (exp.title.includes("Intern") ? <Code className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />),
+            color: index % 2 === 0 ? "text-teal-400" : "text-yellow-400",
+            bgColor: index % 2 === 0 ? "bg-teal-500/10" : "bg-yellow-500/10",
+            borderColor: index % 2 === 0 ? "border-teal-500/30" : "border-yellow-500/30",
+            description: exp.bulletPoints || []
+          }));
+          setExperiences(merged);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <section id="experience" className="relative z-10 container mx-auto px-6 py-24">
       <div className="mb-16 text-center">

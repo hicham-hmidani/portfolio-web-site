@@ -1,7 +1,27 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ExternalLink, Clock, DollarSign, Star } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase-config';
 
 export default function FeaturedService() {
+  const [service, setService] = useState({
+    title: "Custom Professional Excel Dashboard with Advanced Analytics",
+    description: "Need a powerful Excel dashboard? Get a fully custom, professional dashboard with advanced analytics tailored to your business data.",
+    price: "100",
+    deliveryTime: "3 Days",
+    url: "https://www.upwork.com/"
+  });
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "marketplace_items", "upwork_service"), (doc) => {
+      if (doc.exists()) {
+        setService(doc.data() as any);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <section id="featured-service" className="relative z-10 py-24 bg-slate-50 border-y border-slate-200">
       <div className="container mx-auto px-6 relative z-10">
@@ -34,7 +54,6 @@ export default function FeaturedService() {
           className="max-w-4xl mx-auto"
         >
           <div className="group relative overflow-hidden rounded-3xl bg-[#0a0f1e] border-2 border-yellow-500/30 p-8 md:p-10 transition-all duration-300 hover:shadow-2xl hover:shadow-yellow-500/10 hover:border-yellow-500/50 flex flex-col md:flex-row gap-8 items-center">
-            {/* Background glow */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-yellow-500/5 blur-[100px] rounded-full pointer-events-none"></div>
             
             <div className="flex-1 relative z-10">
@@ -44,11 +63,11 @@ export default function FeaturedService() {
               </div>
               
               <h4 className="text-2xl md:text-3xl font-bold font-display text-white mb-4 leading-tight">
-                "You will get a Custom Professional Excel Dashboard with Advanced Analytics"
+                "{service.title}"
               </h4>
               
               <p className="text-slate-300 mb-8 leading-relaxed text-lg">
-                Need a powerful Excel dashboard? Get a fully custom, professional dashboard with advanced analytics tailored to your business data.
+                {service.description}
               </p>
               
               <div className="flex flex-wrap items-center gap-6 mb-8 md:mb-0">
@@ -58,7 +77,7 @@ export default function FeaturedService() {
                   </div>
                   <div>
                     <span className="block text-xs text-slate-400 uppercase tracking-wider font-semibold">Starting Price</span>
-                    <span className="font-bold text-lg">From $100</span>
+                    <span className="font-bold text-lg">From ${service.price}</span>
                   </div>
                 </div>
                 
@@ -70,7 +89,7 @@ export default function FeaturedService() {
                   </div>
                   <div>
                     <span className="block text-xs text-slate-400 uppercase tracking-wider font-semibold">Delivery Time</span>
-                    <span className="font-bold text-lg">3 Days</span>
+                    <span className="font-bold text-lg">{service.deliveryTime}</span>
                   </div>
                 </div>
               </div>
@@ -78,7 +97,7 @@ export default function FeaturedService() {
             
             <div className="w-full md:w-auto shrink-0 relative z-10">
               <a 
-                href="https://www.upwork.com/" 
+                href={service.url} 
                 target="_blank" 
                 rel="noreferrer"
                 className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-yellow-500/20 text-lg"

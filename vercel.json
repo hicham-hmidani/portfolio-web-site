@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin/login.html" },
+    { "source": "/admin/", "destination": "/admin/login.html" },
+    { "source": "/admin/dashboard", "destination": "/admin/dashboard.html" },
+    { "source": "/admin/blog", "destination": "/admin/blog-manager.html" },
+    { "source": "/admin/portfolio", "destination": "/admin/portfolio-editor.html" },
+    { "source": "/admin/projects", "destination": "/admin/projects-manager.html" },
+    { "source": "/admin/messages", "destination": "/admin/messages.html" },
+    { "source": "/admin/marketplace", "destination": "/admin/marketplace-manager.html" }
+  ]
+}
