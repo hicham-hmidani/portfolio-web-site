@@ -10,7 +10,8 @@ service cloud.firestore {
     // Fields: title, category, excerpt, content, readTime, published, createdAt, updatedAt
     //
     // Collection: portfolio_content
-    // Fields: section, data
+    // Documents: hero, skills, experience, contact, education, certifications, workwithme, copy, layout
+    // Subcollection: portfolio_content/{sectionId}/versions/{versionId} (data, timestamp, savedAt, docId)
     //
     // Collection: projects
     // Fields: title, description, tools, githubUrl, stats, featured
@@ -39,10 +40,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Portfolio Content: Admin only
+    // Portfolio Content: Admin write, public read for section documents
     match /portfolio_content/{sectionId} {
       allow read: if true; // Public can read portfolio content
       allow write: if isAdmin();
+
+      // Version history subcollection: Admin read & write only (no public read)
+      match /versions/{versionId} {
+        allow read, write: if isAdmin();
+      }
     }
 
     // Projects: Admin only write, public read

@@ -59,6 +59,7 @@ interface UpworkConfig {
   deliveryTime: string;
   description: string;
   hourlyRate: number;
+  url: string;
   featuredProjects: string[]; // IDs of projects
 }
 
@@ -125,6 +126,7 @@ export default function MarketplaceManager() {
     deliveryTime: '3-5 Days',
     description: 'Expert Excel & SQL dashboard creation for business insights.',
     hourlyRate: 10,
+    url: 'https://www.upwork.com/',
     featuredProjects: []
   });
   const [projects, setProjects] = useState<any[]>([]);
@@ -527,6 +529,16 @@ export default function MarketplaceManager() {
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:border-teal-500 transition-all"
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Upwork Service URL</label>
+                      <input 
+                        type="text" 
+                        value={upworkConfig.url}
+                        onChange={(e) => setUpworkConfig({...upworkConfig, url: e.target.value})}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:border-teal-500 transition-all"
+                      />
                     </div>
 
                     <div className="space-y-2">

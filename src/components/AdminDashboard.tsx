@@ -17,7 +17,10 @@ import {
   Plus,
   Eye,
   MessageSquare,
-  Clock
+  Clock,
+  GraduationCap,
+  Briefcase,
+  Layers
 } from 'lucide-react';
 import { 
   collection, 
@@ -179,6 +182,9 @@ export default function AdminDashboard() {
     { name: 'Blog Posts', icon: <PenTool className="w-5 h-5" />, path: '/admin/blog' },
     { name: 'Portfolio Editor', icon: <Palette className="w-5 h-5" />, path: '/admin/portfolio' },
     { name: 'Projects', icon: <FolderKanban className="w-5 h-5" />, path: '/admin/projects' },
+    { name: 'Education & Certs', icon: <GraduationCap className="w-5 h-5" />, path: '/admin/education' },
+    { name: 'Work With Me', icon: <Briefcase className="w-5 h-5" />, path: '/admin/work-with-me' },
+    { name: 'Sections', icon: <Layers className="w-5 h-5" />, path: '/admin/sections' },
     { name: 'Messages', icon: <Mail className="w-5 h-5" />, path: '/admin/messages', badge: stats.unreadMessages },
     { name: 'Marketplace', icon: <Store className="w-5 h-5" />, path: '/admin/marketplace' },
   ];

@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, ArrowRight, ArrowLeft, Share2, Linkedin, Twitter, RefreshCw, Loader2, X, Sparkles, Plus } from 'lucide-react';
+import { Clock, ArrowRight, ArrowLeft, Share2, Linkedin, Twitter, RefreshCw, Loader2, X, Sparkles } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { GoogleGenAI, Type } from "@google/genai";
+import { gsap, ScrollTrigger, Flip, useGSAP } from '../lib/gsap';
+import { useScrollRefresh } from '../hooks/useScrollRefresh';
 
 type BlogPost = {
   title: string;
@@ -67,28 +69,178 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const FILTERS = ["All", "Data Analysis", "AI & Prompts", "Machine Learning", "Freelancing", "Domain Investing"];
 
-export default function Blog() {
+export default function Blog({ folio = '07' }: { folio?: string } = {}) {
   const [posts, setPosts] = useState<BlogPost[]>(initialPosts);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [articleContent, setArticleContent] = useState("");
-  const [scrollProgress, setScrollProgress] = useState(0);
-  
+
   // Full Blog View State
   const [isViewingAll, setIsViewingAll] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
-  
+
   // Generate New Article State
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [newCategory, setNewCategory] = useState(CATEGORIES[0]);
   const [newTopic, setNewTopic] = useState("");
   const [isGeneratingNew, setIsGeneratingNew] = useState(false);
 
+  // GSAP Refs
+  const sectionRef = useRef<HTMLElement>(null);
+  const headerHairlineRef = useRef<HTMLDivElement>(null);
+  const articleScrollContainerRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const articleScrollTriggerRef = useRef<ScrollTrigger | null>(null);
+  const viewAllFlipRef = useRef<any>(null);
+
+  useScrollRefresh([posts]);
+
+  // Keep body overflow locked when any modal is open
+  useEffect(() => {
+    if (selectedPost || isViewingAll || isGenerateModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedPost, isViewingAll, isGenerateModalOpen]);
+
+  // Performance Fix: ScrollTrigger scrub for article modal progress bar (zero React state updates)
+  const initArticleScrollTrigger = () => {
+    if (articleScrollTriggerRef.current) {
+      articleScrollTriggerRef.current.kill();
+      articleScrollTriggerRef.current = null;
+    }
+    const scrollerEl = articleScrollContainerRef.current;
+    const barEl = progressBarRef.current;
+    if (!scrollerEl || !barEl) return;
+
+    articleScrollTriggerRef.current = ScrollTrigger.create({
+      trigger: scrollerEl.firstElementChild as HTMLElement || scrollerEl,
+      scroller: scrollerEl,
+      start: "top top",
+      end: "bottom bottom",
+      scrub: 0.1,
+      onUpdate: (self) => {
+        gsap.set(barEl, { scaleX: self.progress });
+      }
+    });
+  };
+
+  const cleanupArticleScrollTrigger = () => {
+    if (articleScrollTriggerRef.current) {
+      articleScrollTriggerRef.current.kill();
+      articleScrollTriggerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (selectedPost) {
+      const timer = setTimeout(() => {
+        initArticleScrollTrigger();
+      }, 60);
+      return () => {
+        clearTimeout(timer);
+        cleanupArticleScrollTrigger();
+      };
+    }
+  }, [selectedPost, articleContent]);
+
+  // GSAP Entrance & Batch setup
+  const { contextSafe } = useGSAP(() => {
+    // If a filter flip state was captured, animate layout change with Flip
+    if (viewAllFlipRef.current) {
+      Flip.from(viewAllFlipRef.current, {
+        duration: 0.4,
+        ease: "power2.out",
+        fade: true,
+        absolute: true,
+        nested: true
+      });
+      viewAllFlipRef.current = null;
+    }
+
+    const mm = gsap.matchMedia();
+
+    mm.add({
+      isReduced: "(prefers-reduced-motion: reduce)",
+      isFull: "(prefers-reduced-motion: no-preference)"
+    }, (context) => {
+      const { isReduced } = context.conditions as { isReduced: boolean };
+
+      if (isReduced) {
+        if (headerHairlineRef.current) gsap.set(headerHairlineRef.current, { scaleX: 1, autoAlpha: 1 });
+        gsap.set(".blog-card", { autoAlpha: 1, y: 0 });
+        return;
+      }
+
+      // Hairline draw on section enter
+      if (headerHairlineRef.current && sectionRef.current) {
+        gsap.fromTo(headerHairlineRef.current,
+          { scaleX: 0, transformOrigin: "left center" },
+          {
+            scaleX: 1,
+            ease: "none",
+            scrollTrigger: {
+              trigger: sectionRef.current,
+              start: "top 85%",
+              end: "top 40%",
+              scrub: true
+            }
+          }
+        );
+      }
+
+      // Top-3 post cards: ScrollTrigger.batch reveal
+      gsap.set(".blog-card", { autoAlpha: 0, y: 24 });
+      ScrollTrigger.batch(".blog-card", {
+        interval: 0.1,
+        start: "top 85%",
+        once: true,
+        onEnter: (batch) => {
+          gsap.to(batch, {
+            autoAlpha: 1,
+            y: 0,
+            stagger: 0.08,
+            duration: 0.55,
+            ease: "power2.out",
+            overwrite: "auto"
+          });
+        }
+      });
+    });
+  }, { scope: sectionRef, dependencies: [posts, activeFilter], revertOnUpdate: true });
+
+  // Hover handlers for top-3 cards (fine pointer only)
+  const handleCardMouseEnter = contextSafe((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    const avatar = e.currentTarget.querySelector<HTMLElement>(".blog-avatar");
+    const arrow = e.currentTarget.querySelector<HTMLElement>(".blog-arrow");
+    if (avatar) gsap.to(avatar, { scale: 1.08, duration: 0.3, ease: "power2.out" });
+    if (arrow) gsap.to(arrow, { x: 4, duration: 0.3, ease: "power2.out" });
+  });
+
+  const handleCardMouseLeave = contextSafe((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    const avatar = e.currentTarget.querySelector<HTMLElement>(".blog-avatar");
+    const arrow = e.currentTarget.querySelector<HTMLElement>(".blog-arrow");
+    if (avatar) gsap.to(avatar, { scale: 1, duration: 0.3, ease: "power2.out" });
+    if (arrow) gsap.to(arrow, { x: 0, duration: 0.3, ease: "power2.out" });
+  });
+
+  // Filter change in view all modal animated with Flip
+  const handleFilterClick = contextSafe((filter: string) => {
+    viewAllFlipRef.current = Flip.getState(".view-all-card");
+    setActiveFilter(filter);
+  });
+
   // Generate content for an existing post
   const generateArticle = async (post: BlogPost) => {
     setIsGenerating(true);
     setArticleContent("");
-    
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `You are Hicham Hmidani, a Junior Data Analyst, AI Prompt Engineer, and Domain Name Investor from Morocco. Write a detailed, insightful blog article titled "${post.title}" in the category "${post.category}". 
@@ -100,13 +252,11 @@ export default function Blog() {
         model: "gemini-3.1-pro-preview",
         contents: prompt,
       });
-      
+
       const text = response.text || "Failed to generate article content.";
       setArticleContent(text);
-      
-      // Save the generated content to the post so we don't regenerate it next time
+
       setPosts(prev => prev.map(p => p.title === post.title ? { ...p, content: text } : p));
-      
     } catch (error) {
       console.error("Error generating article:", error);
       setArticleContent("Sorry, there was an error generating the article. Please try again.");
@@ -119,7 +269,7 @@ export default function Blog() {
   const handleGenerateNewPost = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGeneratingNew(true);
-    
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `You are Hicham Hmidani, a Junior Data Analyst, AI Prompt Engineer, and Domain Name Investor from Morocco. 
@@ -148,7 +298,7 @@ export default function Blog() {
       });
 
       const data = JSON.parse(response.text || "{}");
-      
+
       const newPost: BlogPost = {
         title: data.title || newTopic || "New AI Generated Article",
         excerpt: data.excerpt || "An insightful article generated by AI.",
@@ -164,11 +314,9 @@ export default function Blog() {
       setPosts(prev => [newPost, ...prev]);
       setIsGenerateModalOpen(false);
       setNewTopic("");
-      
-      // Open the newly generated post immediately
+
       setSelectedPost(newPost);
       setArticleContent(newPost.content!);
-      
     } catch (error) {
       console.error("Error generating new post:", error);
       alert("Failed to generate article. Please try again.");
@@ -187,27 +335,10 @@ export default function Blog() {
   };
 
   const handleCloseModal = () => {
+    cleanupArticleScrollTrigger();
     setSelectedPost(null);
     setArticleContent("");
   };
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    const scrollHeight = target.scrollHeight - target.clientHeight;
-    const currentProgress = (target.scrollTop / scrollHeight) * 100;
-    setScrollProgress(currentProgress);
-  };
-
-  useEffect(() => {
-    if (selectedPost || isViewingAll || isGenerateModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [selectedPost, isViewingAll, isGenerateModalOpen]);
 
   const filteredPosts = posts.filter(post => {
     if (activeFilter === "All") return true;
@@ -220,144 +351,165 @@ export default function Blog() {
   });
 
   return (
-    <section id="blog" className="relative z-10 py-24 bg-white border-y border-slate-200">
+    <section
+      id="blog"
+      ref={sectionRef}
+      className="relative z-10 py-24 bg-[#FFFFFF] border-t border-[rgba(10,10,10,0.16)]"
+    >
       <div className="container mx-auto px-6 relative z-10">
-        <div className="mb-16 text-center">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl md:text-4xl font-bold font-display text-slate-900 mb-4"
-          >
-            Latest <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-yellow-500">Articles</span>
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-slate-600 max-w-2xl mx-auto"
-          >
-            Insights and tutorials on data analysis, AI prompt engineering, machine learning, freelancing, and domain investing.
-          </motion.p>
+        {/* Section Header with Folio 07 */}
+        <div className="flex flex-col items-start mb-12 w-full">
+          <div className="flex items-baseline justify-between w-full mb-3">
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs font-bold text-[#FF4F00] tracking-widest uppercase">
+                {folio} / BLOG
+              </span>
+              <span className="text-xs font-mono text-[#0A0A0A]/40 uppercase tracking-widest">
+                — ARTICLES & EDITORIALS
+              </span>
+            </div>
+            <div className="text-xs font-mono text-[#0A0A0A]/40 uppercase tracking-wider hidden sm:block">
+              {posts.length} PUBLICATIONS
+            </div>
+          </div>
+
+          {/* Hairline rule that draws with scrub on entrance */}
+          <div
+            ref={headerHairlineRef}
+            className="w-full h-px bg-[rgba(10,10,10,0.16)] mb-8 will-change-transform"
+          />
+
+          {/* Left-Aligned Swiss Headline */}
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[#0A0A0A] mb-3">
+            Latest <span className="text-[#FF4F00]">Articles</span>
+          </h2>
+          <p className="text-base text-[#0A0A0A]/70 max-w-2xl leading-relaxed">
+            Technical breakdowns and practical tutorials on data analytics dashboards, prompt engineering architectures, machine learning models, and domain name investing.
+          </p>
         </div>
 
-        {/* Homepage Grid (Shows up to 3 posts) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {posts.slice(0, 3).map((post, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="group flex flex-col bg-white rounded-3xl border border-slate-200 overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 hover:border-slate-300 transition-all duration-300 cursor-pointer"
+        {/* Oversized background folio watermark */}
+        <div className="absolute top-10 right-6 text-8xl md:text-9xl font-bold tracking-tighter text-[#0A0A0A]/[0.03] select-none pointer-events-none font-sans z-0">
+          {folio}
+        </div>
+
+        {/* Top-3 Posts Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {posts.slice(0, 3).map((post) => (
+            <div
+              key={post.title}
+              onMouseEnter={handleCardMouseEnter}
+              onMouseLeave={handleCardMouseLeave}
               onClick={() => handleReadArticle(post)}
+              className="blog-card group flex flex-col bg-[#FFFFFF] border border-[rgba(10,10,10,0.16)] p-6 md:p-8 hover:border-[#0A0A0A]/40 transition-colors cursor-pointer justify-between"
             >
-              <div className="p-8 flex flex-col flex-grow">
-                <div className="mb-6">
-                  <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border ${post.categoryColor}`}>
+              <div>
+                <div className="mb-4">
+                  <span className="inline-block px-2.5 py-1 text-[11px] font-mono uppercase font-bold tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A]">
                     {post.category}
                   </span>
                 </div>
-                
-                <h3 className="text-xl font-bold font-display text-slate-900 mb-3 group-hover:text-teal-600 transition-colors line-clamp-2">
+
+                <h3 className="text-lg md:text-xl font-bold tracking-tight text-[#0A0A0A] mb-3 leading-snug group-hover:text-[#FF4F00] transition-colors line-clamp-2">
                   {post.title}
                 </h3>
-                
-                <p className="text-slate-600 text-sm leading-relaxed mb-6 line-clamp-2 flex-grow">
+
+                <p className="text-sm text-[#0A0A0A]/70 leading-relaxed mb-6 line-clamp-3">
                   {post.excerpt}
                 </p>
-                
-                <div className="flex items-center justify-between mt-auto pt-6 border-t border-slate-100">
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between pt-4 border-t border-[rgba(10,10,10,0.1)] mb-4">
                   <div className="flex items-center gap-3">
-                    <img 
-                      src={post.avatar} 
-                      alt={post.author} 
-                      className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                    <img
+                      src={post.avatar}
+                      alt={post.author}
+                      className="blog-avatar w-8 h-8 rounded-full object-cover border border-[rgba(10,10,10,0.16)] will-change-transform"
                       referrerPolicy="no-referrer"
                     />
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{post.author}</p>
-                      <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
+                      <p className="text-xs font-bold text-[#0A0A0A]">{post.author}</p>
+                      <div className="flex items-center gap-1 text-[10px] font-mono text-[#0A0A0A]/50">
                         <Clock className="w-3 h-3" />
-                        {post.readTime}
+                        <span>{post.readTime}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                <div className="mt-6">
-                  <span className="inline-flex items-center gap-2 text-sm font-bold text-teal-600 group-hover:text-teal-700 transition-colors">
-                    Read Article
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </span>
+
+                <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[#FF4F00]">
+                  <span>Read Article</span>
+                  <ArrowRight className="blog-arrow w-3.5 h-3.5 will-change-transform" />
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
-        <div className="mt-16 text-center">
-          <button 
+        {/* View All Posts Button */}
+        <div className="mt-12 text-center md:text-left max-w-6xl mx-auto">
+          <button
             onClick={() => setIsViewingAll(true)}
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/20"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#0A0A0A] hover:bg-[#FF4F00] text-white font-mono text-xs uppercase tracking-wider font-semibold transition-colors cursor-pointer shadow-none"
           >
-            View All Posts
-            <ArrowRight className="w-5 h-5" />
+            <span>View All Posts</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Full Blog Listing Overlay */}
+      {/* Full Blog Listing Modal (Retaining AnimatePresence) */}
       <AnimatePresence>
         {isViewingAll && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed inset-0 z-[80] bg-slate-50 overflow-y-auto"
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[80] bg-[#FFFFFF] overflow-y-auto"
           >
             <div className="min-h-screen pb-24">
               {/* Header */}
-              <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+              <div className="bg-[#FFFFFF] border-b border-[rgba(10,10,10,0.16)] sticky top-0 z-20">
                 <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-                  <button 
+                  <button
                     onClick={() => setIsViewingAll(false)}
-                    className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors"
+                    className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]/70 hover:text-[#0A0A0A] transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Portfolio
                   </button>
-                  <h2 className="text-xl font-bold font-display text-slate-900 hidden sm:block">Hicham's Blog</h2>
-                  <button 
+                  <span className="text-xs font-mono uppercase tracking-widest text-[#0A0A0A]/40 hidden sm:block">
+                    {folio} / EDITORIAL ARCHIVE
+                  </span>
+                  <button
                     onClick={() => setIsGenerateModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 font-bold text-sm transition-colors border border-teal-200"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] font-mono text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer"
                   >
-                    <Sparkles className="w-4 h-4" />
+                    <Sparkles className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Generate New Article with AI</span>
                     <span className="sm:hidden">Generate</span>
                   </button>
                 </div>
               </div>
 
-              <div className="container mx-auto px-6 pt-12">
-                <div className="mb-12 text-center">
-                  <h1 className="text-4xl md:text-5xl font-bold font-display text-slate-900 mb-6">
-                    All <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-yellow-500">Articles</span>
+              <div className="container mx-auto px-6 pt-10">
+                <div className="mb-10 text-left">
+                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#0A0A0A] mb-4">
+                    Editorial <span className="text-[#FF4F00]">Archive</span>
                   </h1>
-                  
-                  {/* Filters */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 max-w-3xl mx-auto">
+
+                  {/* Filter Chips with Flip Animation */}
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-[rgba(10,10,10,0.12)]">
                     {FILTERS.map(filter => (
                       <button
                         key={filter}
-                        onClick={() => setActiveFilter(filter)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                          activeFilter === filter 
-                            ? 'bg-slate-900 text-white shadow-md' 
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        onClick={() => handleFilterClick(filter)}
+                        className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer border ${
+                          activeFilter === filter
+                            ? 'bg-[#FF4F00] text-white border-[#FF4F00]'
+                            : 'bg-[#F7F7F8] border-[rgba(10,10,10,0.14)] text-[#0A0A0A]/70 hover:border-[#0A0A0A]'
                         }`}
                       >
                         {filter}
@@ -366,56 +518,40 @@ export default function Blog() {
                   </div>
                 </div>
 
-                {/* Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-                  {filteredPosts.map((post, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="group flex flex-col bg-white rounded-3xl border border-slate-200 overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 hover:border-slate-300 transition-all duration-300 cursor-pointer"
+                {/* Animated Grid with Stable Keys */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl">
+                  {filteredPosts.map((post) => (
+                    <div
+                      key={post.title}
                       onClick={() => handleReadArticle(post)}
+                      className="view-all-card flex flex-col bg-[#FFFFFF] border border-[rgba(10,10,10,0.16)] p-6 hover:border-[#0A0A0A]/40 transition-colors cursor-pointer justify-between"
                     >
-                      <div className="p-8 flex flex-col flex-grow">
-                        <div className="mb-6">
-                          <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border ${post.categoryColor}`}>
+                      <div>
+                        <div className="mb-3">
+                          <span className="inline-block px-2.5 py-0.5 text-[10px] font-mono uppercase font-bold tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A]">
                             {post.category}
                           </span>
                         </div>
-                        
-                        <h3 className="text-xl font-bold font-display text-slate-900 mb-3 group-hover:text-teal-600 transition-colors line-clamp-2">
+
+                        <h3 className="text-base font-bold text-[#0A0A0A] mb-2 leading-snug line-clamp-2">
                           {post.title}
                         </h3>
-                        
-                        <p className="text-slate-600 text-sm leading-relaxed mb-6 line-clamp-3 flex-grow">
+
+                        <p className="text-xs text-[#0A0A0A]/70 leading-relaxed mb-6 line-clamp-3">
                           {post.excerpt}
                         </p>
-                        
-                        <div className="flex items-center justify-between mt-auto pt-6 border-t border-slate-100">
-                          <div className="flex items-center gap-3">
-                            <img 
-                              src={post.avatar} 
-                              alt={post.author} 
-                              className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">{post.author}</p>
-                              <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
-                                <Clock className="w-3 h-3" />
-                                {post.readTime}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
                       </div>
-                    </motion.div>
+
+                      <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex items-center justify-between text-[11px] font-mono text-[#0A0A0A]/60">
+                        <span>{post.date}</span>
+                        <span>{post.readTime}</span>
+                      </div>
+                    </div>
                   ))}
-                  
+
                   {filteredPosts.length === 0 && (
-                    <div className="col-span-full py-20 text-center text-slate-500">
-                      No articles found for this category. Try generating one!
+                    <div className="col-span-full py-16 text-center text-xs font-mono text-[#0A0A0A]/50 uppercase">
+                      No articles found for category.
                     </div>
                   )}
                 </div>
@@ -425,81 +561,81 @@ export default function Blog() {
         )}
       </AnimatePresence>
 
-      {/* Generate New Article Modal */}
+      {/* Generate New Article Modal (Retaining AnimatePresence) */}
       <AnimatePresence>
         {isGenerateModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[90] bg-[#0A0A0A]/60 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.98, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+              exit={{ opacity: 0, scale: 0.98, y: 16 }}
+              className="w-full max-w-lg bg-[#FFFFFF] border border-[rgba(10,10,10,0.2)] shadow-2xl overflow-hidden"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="text-xl font-bold font-display text-slate-900 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-teal-500" />
-                  Generate New Article
+              <div className="p-6 border-b border-[rgba(10,10,10,0.12)] flex items-center justify-between bg-[#F7F7F8]">
+                <h3 className="text-lg font-bold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#FF4F00]" />
+                  Generate New Article with Gemini
                 </h3>
-                <button 
+                <button
                   onClick={() => !isGeneratingNew && setIsGenerateModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                  className="p-1 text-[#0A0A0A]/40 hover:text-[#0A0A0A] transition-colors cursor-pointer"
                   disabled={isGeneratingNew}
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <form onSubmit={handleGenerateNewPost} className="p-6 sm:p-8">
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                    <label className="block text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] mb-2">
                       Topic Category
                     </label>
-                    <select 
+                    <select
                       value={newCategory}
                       onChange={(e) => setNewCategory(e.target.value)}
                       disabled={isGeneratingNew}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all appearance-none"
+                      className="w-full px-4 py-2.5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-xs font-mono text-[#0A0A0A] focus:outline-none focus:border-[#FF4F00] transition-colors"
                     >
                       {CATEGORIES.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      What would you like to know about? <span className="text-slate-400 font-normal">(Optional)</span>
+                    <label className="block text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] mb-2">
+                      What would you like to know about? <span className="text-[#0A0A0A]/40 font-normal">(Optional)</span>
                     </label>
-                    <textarea 
+                    <textarea
                       value={newTopic}
                       onChange={(e) => setNewTopic(e.target.value)}
                       disabled={isGeneratingNew}
                       placeholder="e.g., How to use Python for stock market analysis..."
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all resize-none h-24"
+                      className="w-full px-4 py-2.5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-xs font-mono text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:outline-none focus:border-[#FF4F00] transition-colors resize-none h-24"
                     />
                   </div>
                 </div>
 
                 <div className="mt-8">
-                  <button 
+                  <button
                     type="submit"
                     disabled={isGeneratingNew}
-                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#0A0A0A] hover:bg-[#FF4F00] text-white font-mono text-xs uppercase tracking-wider font-bold transition-colors disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isGeneratingNew ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Generating Article...
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating Article with Gemini...
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-5 h-5" />
+                        <Sparkles className="w-4 h-4" />
                         Generate with AI
                       </>
                     )}
@@ -511,67 +647,87 @@ export default function Blog() {
         )}
       </AnimatePresence>
 
-      {/* Article Modal */}
+      {/* Article Reader Modal (Performance Fix: scaleX progress bar driven by ScrollTrigger scrub) */}
       <AnimatePresence>
         {selectedPost && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-[100] bg-[#0A0A0A]/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
           >
             <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.95 }}
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="w-full max-w-4xl max-h-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col relative border border-slate-800"
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              className="w-full max-w-4xl max-h-[92vh] bg-[#FFFFFF] border border-[rgba(10,10,10,0.2)] shadow-2xl flex flex-col relative overflow-hidden"
             >
-              {/* Progress Bar */}
-              <div className="absolute top-0 left-0 w-full h-1 bg-slate-800 z-50">
-                <div 
-                  className="h-full bg-gradient-to-r from-teal-500 to-yellow-500 transition-all duration-150"
-                  style={{ width: `${scrollProgress}%` }}
+              {/* Performance Fix: scaleX bar driven by ScrollTrigger scrub (zero React state updates) */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-[rgba(10,10,10,0.1)] z-50 overflow-hidden">
+                <div
+                  ref={progressBarRef}
+                  className="h-full w-full bg-[#FF4F00] origin-left scale-x-0 will-change-transform"
                 />
               </div>
 
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-800 bg-slate-900/95 backdrop-blur z-40 sticky top-0">
-                <button 
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[rgba(10,10,10,0.12)] bg-[#FFFFFF] z-40 sticky top-0">
+                <button
                   onClick={handleCloseModal}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                  className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]/70 hover:text-[#0A0A0A] transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to Blog
+                  Back to Articles
                 </button>
                 <div className="flex items-center gap-2">
-                  <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                  <button
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: selectedPost.title, url: window.location.href }).catch(() => {});
+                      }
+                    }}
+                    className="p-2 text-[#0A0A0A]/60 hover:text-[#0A0A0A] hover:bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] transition-colors cursor-pointer"
+                    aria-label="Share"
+                  >
                     <Share2 className="w-4 h-4" />
                   </button>
-                  <button className="p-2 text-slate-400 hover:text-[#0A66C2] hover:bg-slate-800 rounded-lg transition-colors">
+                  <a
+                    href="https://linkedin.com/in/hicham-hmidani-b55a5521b/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 text-[#0A0A0A]/60 hover:text-[#0A66C2] hover:bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] transition-colors"
+                    aria-label="LinkedIn"
+                  >
                     <Linkedin className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 text-slate-400 hover:text-[#1DA1F2] hover:bg-slate-800 rounded-lg transition-colors">
+                  </a>
+                  <a
+                    href="https://twitter.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 text-[#0A0A0A]/60 hover:text-[#1DA1F2] hover:bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] transition-colors"
+                    aria-label="Twitter"
+                  >
                     <Twitter className="w-4 h-4" />
-                  </button>
+                  </a>
                 </div>
               </div>
 
-              {/* Modal Content */}
-              <div 
-                className="overflow-y-auto p-6 sm:p-10 scroll-smooth"
-                onScroll={handleScroll}
+              {/* Modal Scroll Container (Attached to ScrollTrigger as scroller) */}
+              <div
+                ref={articleScrollContainerRef}
+                className="overflow-y-auto p-6 sm:p-12"
               >
                 <div className="max-w-3xl mx-auto">
-                  <div className="mb-10 text-center">
-                    <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border mb-6 ${(selectedPost.categoryColor || "text-slate-700 bg-slate-50 border-slate-200").replace('bg-', 'bg-opacity-10 bg-').replace('text-', 'text-').replace('border-', 'border-opacity-20 border-')}`}>
+                  <div className="mb-8 text-left">
+                    <span className="inline-block px-2.5 py-1 text-xs font-mono uppercase font-bold tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A] mb-4">
                       {selectedPost.category}
                     </span>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold font-display text-white mb-6 leading-tight">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#0A0A0A] mb-4 leading-tight">
                       {selectedPost.title}
                     </h1>
-                    <div className="flex items-center justify-center gap-4 text-sm text-slate-400">
+                    <div className="flex items-center gap-4 text-xs font-mono text-[#0A0A0A]/50 border-b border-[rgba(10,10,10,0.1)] pb-6">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-3.5 h-3.5" />
                         {selectedPost.readTime}
                       </span>
                       <span>•</span>
@@ -580,37 +736,37 @@ export default function Blog() {
                   </div>
 
                   {isGenerating ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                      <Loader2 className="w-10 h-10 animate-spin text-teal-500 mb-4" />
-                      <p className="text-lg font-medium animate-pulse">✍️ Hicham's AI is writing this article...</p>
+                    <div className="flex flex-col items-center justify-center py-20 text-[#0A0A0A]/60">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#FF4F00] mb-3" />
+                      <p className="text-xs font-mono uppercase tracking-wider">Generating article with Gemini AI...</p>
                     </div>
                   ) : (
-                    <div className="prose prose-invert prose-lg max-w-none prose-headings:font-display prose-headings:font-bold prose-a:text-teal-400 hover:prose-a:text-teal-300 prose-img:rounded-2xl">
+                    <div className="prose prose-slate prose-lg max-w-none prose-headings:font-sans prose-headings:font-bold prose-headings:text-[#0A0A0A] prose-p:text-[#0A0A0A]/80 prose-a:text-[#FF4F00] prose-li:text-[#0A0A0A]/80">
                       <Markdown>{articleContent}</Markdown>
                     </div>
                   )}
 
                   {!isGenerating && articleContent && (
-                    <div className="mt-16 pt-10 border-t border-slate-800">
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <div className="mt-12 pt-8 border-t border-[rgba(10,10,10,0.12)]">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                          <img 
-                            src={selectedPost.avatar} 
-                            alt={selectedPost.author} 
-                            className="w-16 h-16 rounded-full object-cover border-2 border-slate-700"
+                          <img
+                            src={selectedPost.avatar}
+                            alt={selectedPost.author}
+                            className="w-12 h-12 rounded-full object-cover border border-[rgba(10,10,10,0.16)]"
                             referrerPolicy="no-referrer"
                           />
                           <div>
-                            <p className="text-lg font-bold text-white">{selectedPost.author}</p>
-                            <p className="text-sm text-slate-400">Junior Data Analyst & AI Prompt Engineer</p>
+                            <p className="text-sm font-bold text-[#0A0A0A]">{selectedPost.author}</p>
+                            <p className="text-xs font-mono text-[#0A0A0A]/60">Junior Data Analyst & AI Prompt Engineer</p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => generateArticle(selectedPost)}
-                          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium transition-all hover:scale-105 active:scale-95"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] font-mono text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer"
                         >
-                          <RefreshCw className="w-4 h-4" />
-                          Generate Another Version
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Generate Alternate Version</span>
                         </button>
                       </div>
                     </div>

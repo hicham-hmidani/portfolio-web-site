@@ -17,8 +17,11 @@ import {
   XCircle,
   Layout,
   Eye,
-  MapPin
+  MapPin,
+  History
 } from 'lucide-react';
+import { saveSection } from '../admin/saveSection';
+import HistoryDrawer from '../admin/ui/HistoryDrawer';
 import { 
   doc, 
   getDoc, 
@@ -94,6 +97,7 @@ export default function PortfolioEditor() {
   const [activeTab, setActiveTab] = useState<'hero' | 'skills' | 'experience' | 'contact'>('hero');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const navigate = useNavigate();
 
   // --- State for each section ---
@@ -175,11 +179,12 @@ export default function PortfolioEditor() {
   const handleSave = async (section: string, data: any) => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'portfolio_content', section), data);
-      toast.success(`${section.charAt(0).toUpperCase() + section.slice(1)} section saved!`);
+      await saveSection(section, data, {
+        notify: true,
+        successMessage: `${section.charAt(0).toUpperCase() + section.slice(1)} section saved!`
+      });
     } catch (err) {
       console.error(`Error saving ${section}:`, err);
-      toast.error(`Failed to save ${section}`);
     } finally {
       setSaving(false);
     }
@@ -269,7 +274,15 @@ export default function PortfolioEditor() {
             </Link>
             <h1 className="text-xl font-bold">Portfolio Editor</h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono transition-colors border border-slate-700"
+            >
+              <History className="w-4 h-4 text-teal-400" />
+              <span>History ({activeTab})</span>
+            </button>
             <a href="/" target="_blank" className="flex items-center gap-2 text-sm text-slate-400 hover:text-teal-500 transition-colors">
               <Eye className="w-4 h-4" />
               View Live
@@ -794,6 +807,20 @@ export default function PortfolioEditor() {
           </div>
         </aside>
       </div>
+
+      {/* Version History Safety Net Drawer */}
+      <HistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        docId={activeTab}
+        sectionTitle={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section`}
+        onRestored={(restoredData) => {
+          if (activeTab === 'hero') setHero(restoredData);
+          if (activeTab === 'skills') setSkills(restoredData);
+          if (activeTab === 'experience') setExperience(restoredData);
+          if (activeTab === 'contact') setContact(restoredData);
+        }}
+      />
     </div>
   );
 }

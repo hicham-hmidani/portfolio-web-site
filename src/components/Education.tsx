@@ -1,342 +1,408 @@
-import { motion } from 'motion/react';
-import { GraduationCap, Award, ExternalLink, CheckCircle2, Building, Calendar, Globe, ArrowRight } from 'lucide-react';
+import { useRef } from 'react';
+import { GraduationCap, Award, ExternalLink, CheckCircle2, Building, Calendar, ArrowRight } from 'lucide-react';
+import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap';
+import { useSectionDoc } from '../hooks/useSectionDoc';
+import { educationDefaults, certificationsDefaults, EducationItem, CertificationItem } from '../content/educationDefaults';
+import { useScrollRefresh } from '../hooks/useScrollRefresh';
 
-const education = [
-  {
-    degree: "Master in Science and Technology",
-    institution: "Faculty of Science and Technology, Errachidia",
-    period: "2021 – 2023",
-    field: "Computer Science and Complex Systems Engineering",
-    icon: <GraduationCap className="w-5 h-5" />
-  },
-  {
-    degree: "Bachelor of Science and Technology",
-    institution: "Faculty of Science and Technology, Errachidia",
-    period: "2020 – 2021",
-    field: "Engineering and Management of Industrial Systems",
-    icon: <GraduationCap className="w-5 h-5" />
-  },
-  {
-    degree: "Baccalaureate",
-    institution: "New Secondary School, Erfoud",
-    period: "2016 – 2017",
-    field: "Physical Sciences",
-    icon: <GraduationCap className="w-5 h-5" />
-  }
-];
+function deriveCertDateSpan(certs: { date: string }[]): string {
+  const timestamps = certs
+    .map(c => Date.parse(c.date))
+    .filter(t => !isNaN(t));
 
-const googleCertifications = [
-  {
-    title: "Foundations: Data, Data, Everywhere",
-    issuer: "Google",
-    platform: "Coursera",
-    date: "Nov 15, 2023",
-    verifyUrl: "https://coursera.org/verify/3BCNC5V2AFSE",
-    color: "bg-blue-500",
-    glow: "shadow-blue-500/20",
-    border: "border-blue-500/30"
-  },
-  {
-    title: "Ask Questions to Make Data-Driven Decisions",
-    issuer: "Google",
-    platform: "Coursera",
-    date: "Nov 23, 2023",
-    verifyUrl: "https://coursera.org/verify/CLGY38CCZL6V",
-    color: "bg-red-500",
-    glow: "shadow-red-500/20",
-    border: "border-red-500/30"
-  },
-  {
-    title: "Prepare Data for Exploration",
-    issuer: "Google",
-    platform: "Coursera",
-    date: "Dec 11, 2023",
-    verifyUrl: "https://coursera.org/verify/T39GTBBZDJD2",
-    color: "bg-yellow-500",
-    glow: "shadow-yellow-500/20",
-    border: "border-yellow-500/30"
-  },
-  {
-    title: "Process Data from Dirty to Clean",
-    issuer: "Google",
-    platform: "Coursera",
-    date: "Feb 15, 2024",
-    verifyUrl: "https://coursera.org/verify/VV43T82XLDV6",
-    color: "bg-green-500",
-    glow: "shadow-green-500/20",
-    border: "border-green-500/30"
-  }
-];
+  if (timestamps.length === 0) return "Nov 2023 – Feb 2024";
 
-const specializedCertifications = [
-  {
-    title: "Prompt Engineering for ChatGPT",
-    issuer: "Vanderbilt University",
-    platform: "Coursera",
-    date: "Dec 18, 2023",
-    verifyUrl: "https://coursera.org/verify/MX4YZBY9F57E",
-    badge: "University Certificate",
-    note: "Authorized by a top-ranked US university",
-    color: "bg-amber-500",
-    glow: "shadow-amber-500/20",
-    border: "border-amber-500/50",
-    special: true
-  },
-  {
-    title: "Data Analysis with Python",
-    issuer: "IBM",
-    platform: "CognitiveClass.ai",
-    date: "Nov 21, 2023",
-    courseId: "DA0101EN",
-    verifyUrl: "https://courses.cognitiveclass.ai/certificates/250a1fb56ee0453b99ed8b5ce8b12fca",
-    color: "bg-blue-600",
-    glow: "shadow-blue-600/20",
-    border: "border-blue-600/30"
-  },
-  {
-    title: "SQL for Data Science",
-    issuer: "Great Learning Academy",
-    platform: "Great Learning",
-    date: "Nov 2023",
-    verifyUrl: "https://mygreatlearning.com/certificate/WZBXPOHY",
-    color: "bg-teal-500",
-    glow: "shadow-teal-500/20",
-    border: "border-teal-500/30"
-  }
-];
+  const minDate = new Date(Math.min(...timestamps));
+  const maxDate = new Date(Math.max(...timestamps));
 
-export default function Education() {
+  const formatMonthYear = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+  return `${formatMonthYear(minDate)} – ${formatMonthYear(maxDate)}`;
+}
+
+export default function Education({ folio = '08' }: { folio?: string } = {}) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const headerHairlineRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  const { data: eduDoc } = useSectionDoc<{ items: EducationItem[] }>('education', educationDefaults);
+  const { data: certDoc } = useSectionDoc<{ items: CertificationItem[] }>('certifications', certificationsDefaults);
+
+  const visibleEducation = (eduDoc.items || []).filter(item => item.visible !== false);
+  const visibleCertifications = (certDoc.items || []).filter(item => item.visible !== false);
+
+  const googleCerts = visibleCertifications.filter(c => c.group === 'Google');
+  const specializedCerts = visibleCertifications.filter(c => c.group === 'Specialized');
+
+  const totalCertifications = visibleCertifications.length;
+
+  const institutionSet = new Set<string>();
+  visibleEducation.forEach(e => institutionSet.add(e.institution));
+  visibleCertifications.forEach(c => institutionSet.add(c.issuer));
+  const totalInstitutions = institutionSet.size;
+
+  const certTimeline = deriveCertDateSpan(visibleCertifications);
+
+  useScrollRefresh([visibleEducation, visibleCertifications]);
+
+  useGSAP(() => {
+    const mm = gsap.matchMedia();
+
+    mm.add({
+      isReduced: "(prefers-reduced-motion: reduce)",
+      isFull: "(prefers-reduced-motion: no-preference)"
+    }, (context) => {
+      const { isReduced } = context.conditions as { isReduced: boolean };
+
+      if (isReduced) {
+        if (headerHairlineRef.current) gsap.set(headerHairlineRef.current, { scaleX: 1, autoAlpha: 1 });
+        if (progressBarRef.current) gsap.set(progressBarRef.current, { scaleX: 0.5 });
+        gsap.set(".education-item", { autoAlpha: 1, x: 0 });
+        gsap.set(".certification-card", { autoAlpha: 1, y: 0 });
+        return;
+      }
+
+      // 1. Header hairline scrub entrance
+      if (headerHairlineRef.current && sectionRef.current) {
+        gsap.fromTo(headerHairlineRef.current,
+          { scaleX: 0, transformOrigin: "left center" },
+          {
+            scaleX: 1,
+            ease: "none",
+            scrollTrigger: {
+              trigger: sectionRef.current,
+              start: "top 85%",
+              end: "top 40%",
+              scrub: true
+            }
+          }
+        );
+      }
+
+      // 2. Count-up animation on derived numbers
+      const counterSpans = sectionRef.current?.querySelectorAll<HTMLElement>(".derived-num-counter");
+      counterSpans?.forEach((span) => {
+        const target = parseFloat(span.getAttribute("data-target") || "0");
+        if (!target) return;
+        const countObj = { val: 0 };
+        gsap.to(countObj, {
+          val: target,
+          duration: 1.0,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: span,
+            start: "top 85%",
+            toggleActions: "play none none none"
+          },
+          onUpdate: () => {
+            span.textContent = Math.round(countObj.val).toString();
+          }
+        });
+      });
+
+      // 3. Progress bar animation
+      if (progressBarRef.current) {
+        gsap.fromTo(progressBarRef.current,
+          { scaleX: 0, transformOrigin: "left center" },
+          {
+            scaleX: 0.5,
+            duration: 0.9,
+            ease: "power2.out",
+            scrollTrigger: {
+              trigger: progressBarRef.current,
+              start: "top 85%",
+              toggleActions: "play none none none"
+            }
+          }
+        );
+      }
+
+      // 4. Education items slide-in from left
+      gsap.set(".education-item", { autoAlpha: 0, x: -20 });
+      ScrollTrigger.batch(".education-item", {
+        interval: 0.1,
+        start: "top 85%",
+        once: true,
+        onEnter: (batch) => {
+          gsap.to(batch, {
+            autoAlpha: 1,
+            x: 0,
+            stagger: 0.1,
+            duration: 0.6,
+            ease: "power2.out",
+            overwrite: "auto"
+          });
+        }
+      });
+
+      // 5. Certification cards via ScrollTrigger.batch
+      gsap.set(".certification-card", { autoAlpha: 0, y: 20 });
+      ScrollTrigger.batch(".certification-card", {
+        interval: 0.1,
+        start: "top 85%",
+        once: true,
+        onEnter: (batch) => {
+          gsap.to(batch, {
+            autoAlpha: 1,
+            y: 0,
+            stagger: 0.08,
+            duration: 0.5,
+            ease: "power2.out",
+            overwrite: "auto"
+          });
+        }
+      });
+    });
+  }, { scope: sectionRef, dependencies: [visibleEducation, visibleCertifications], revertOnUpdate: true });
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parsed = Date.parse(dateStr);
+    if (isNaN(parsed)) return dateStr;
+    return new Date(parsed).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   return (
-    <section id="education" className="relative z-10 py-24 bg-slate-50 text-slate-900 overflow-hidden">
-      {/* Background elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-500/5 blur-[120px] rounded-full" />
-      </div>
+    <section
+      id="education"
+      ref={sectionRef}
+      className="relative z-10 py-24 bg-[#FFFFFF] border-t border-[rgba(10,10,10,0.16)]"
+    >
+      <div className="container mx-auto px-6 relative">
+        {/* Section Header with Folio 07 */}
+        <div className="flex flex-col items-start mb-12 w-full">
+          <div className="flex items-baseline justify-between w-full mb-3">
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs font-bold text-[#FF4F00] tracking-widest uppercase">
+                {folio} / EDUCATION
+              </span>
+              <span className="text-xs font-mono text-[#0A0A0A]/40 uppercase tracking-widest">
+                — ACADEMIC PATH & CREDENTIALS
+              </span>
+            </div>
+            <div className="text-xs font-mono text-[#0A0A0A]/40 uppercase tracking-wider hidden sm:block">
+              {totalCertifications} CERTIFICATIONS VERIFIED
+            </div>
+          </div>
 
-      <div className="container mx-auto px-6 relative z-10">
-        <div className="mb-16 text-center">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl md:text-4xl font-bold font-display mb-4"
-          >
-            Education & <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-yellow-500">Certifications</span>
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-slate-600 max-w-2xl mx-auto"
-          >
-            A comprehensive roadmap of my academic background and professional certifications.
-          </motion.p>
+          <div
+            ref={headerHairlineRef}
+            className="w-full h-px bg-[rgba(10,10,10,0.16)] mb-8 will-change-transform"
+          />
+
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[#0A0A0A] mb-3">
+            Academic & <span className="text-[#FF4F00]">Credentials</span>
+          </h2>
+          <p className="text-base text-[#0A0A0A]/70 max-w-2xl leading-relaxed">
+            A verified progression of university degrees, engineering specializations, and professional certifications in data analysis and AI systems.
+          </p>
+        </div>
+
+        <div className="absolute top-10 right-6 text-8xl md:text-9xl font-bold tracking-tighter text-[#0A0A0A]/[0.03] select-none pointer-events-none font-sans z-0">
+          {folio}
         </div>
 
         {/* Stats Row */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-20"
-        >
-          {[
-            { label: 'Certifications', val: '7', icon: <Award className="w-5 h-5" /> },
-            { label: 'Institutions', val: '4', icon: <Building className="w-5 h-5" /> },
-            { label: 'Timeline', val: 'Nov 23 - Feb 24', icon: <Calendar className="w-5 h-5" /> },
-            { label: 'Verification', val: '100% Clickable', icon: <Globe className="w-5 h-5" /> },
-          ].map((stat, i) => (
-            <div key={i} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col items-center text-center">
-              <div className="text-teal-600 mb-2">{stat.icon}</div>
-              <div className="text-xl font-bold text-slate-900 mb-1">{stat.val}</div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{stat.label}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mb-16">
+          <div className="p-5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.14)] text-left">
+            <div className="flex items-center justify-between mb-2">
+              <Award className="w-4 h-4 text-[#FF4F00]" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#0A0A0A]/50 font-bold">Total Issued</span>
             </div>
-          ))}
-        </motion.div>
+            <div className="text-3xl font-bold font-mono text-[#0A0A0A] mb-1">
+              <span className="derived-num-counter" data-target={totalCertifications}>
+                0
+              </span>
+            </div>
+            <div className="text-xs font-mono text-[#0A0A0A]/70 uppercase tracking-wider font-semibold">
+              Professional Certifications
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 max-w-7xl mx-auto">
-          
-          {/* Education Column (4/12) */}
-          <div className="lg:col-span-4">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-600 border border-yellow-500/20">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <h3 className="text-2xl font-bold font-display">Academic Path</h3>
+          <div className="p-5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.14)] text-left">
+            <div className="flex items-center justify-between mb-2">
+              <Building className="w-4 h-4 text-[#FF4F00]" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#0A0A0A]/50 font-bold">Universities & Issuers</span>
+            </div>
+            <div className="text-3xl font-bold font-mono text-[#0A0A0A] mb-1">
+              <span className="derived-num-counter" data-target={totalInstitutions}>
+                0
+              </span>
+            </div>
+            <div className="text-xs font-mono text-[#0A0A0A]/70 uppercase tracking-wider font-semibold">
+              Distinct Institutions
+            </div>
+          </div>
+
+          <div className="p-5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.14)] text-left">
+            <div className="flex items-center justify-between mb-2">
+              <Calendar className="w-4 h-4 text-[#FF4F00]" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#0A0A0A]/50 font-bold">Completion Span</span>
+            </div>
+            <div className="text-lg font-bold font-mono text-[#0A0A0A] mb-1 pt-1.5">
+              {certTimeline}
+            </div>
+            <div className="text-xs font-mono text-[#0A0A0A]/70 uppercase tracking-wider font-semibold">
+              Certifications Completed
+            </div>
+          </div>
+        </div>
+
+        {/* 2-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 max-w-7xl">
+          {/* Education Column */}
+          <div className="education-column lg:col-span-5">
+            <div className="flex items-center gap-2.5 mb-8 pb-3 border-b border-[rgba(10,10,10,0.12)]">
+              <GraduationCap className="w-5 h-5 text-[#FF4F00]" />
+              <h3 className="text-xl font-bold tracking-tight text-[#0A0A0A]">
+                Academic Path
+              </h3>
             </div>
 
-            <div className="space-y-6">
-              {education.map((item, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="relative pl-8 before:absolute before:left-[11px] before:top-8 before:bottom-[-24px] before:w-px before:bg-slate-200 last:before:hidden"
-                >
-                  <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center z-10">
-                    <div className="w-2 h-2 rounded-full bg-teal-500"></div>
-                  </div>
-                  
-                  <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors group">
-                    <div className="text-xs font-bold text-teal-600 mb-1">{item.period}</div>
-                    <h4 className="text-lg font-bold font-display text-slate-900 mb-1 leading-tight group-hover:text-teal-600 transition-colors">
+            <div className="space-y-6 relative">
+              <div className="absolute left-[7px] top-4 bottom-4 w-px bg-[rgba(10,10,10,0.14)] pointer-events-none" />
+
+              {visibleEducation.map((item, index) => (
+                <div key={item.id || index} className="education-item relative pl-8">
+                  <div className="absolute left-0 top-2 w-3.5 h-3.5 bg-white border-2 border-[#0A0A0A] z-10" />
+
+                  <div className="p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors">
+                    <div className="text-xs font-mono font-bold text-[#FF4F00] uppercase mb-1">
+                      {item.period}
+                    </div>
+                    <h4 className="text-base font-bold text-[#0A0A0A] mb-1 leading-snug">
                       {item.degree}
                     </h4>
-                    <div className="text-slate-600 text-sm mb-3">{item.field}</div>
-                    <div className="text-slate-500 text-xs flex items-center gap-2">
-                      <Building className="w-3.5 h-3.5" />
-                      {item.institution}
+                    <div className="text-xs text-[#0A0A0A]/75 mb-3">
+                      {item.field}
+                    </div>
+                    <div className="text-[11px] font-mono text-[#0A0A0A]/50 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-[#0A0A0A]/40" />
+                      <span>{item.institution}</span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Certifications Column (8/12) */}
-          <div className="lg:col-span-8">
-            {/* Category 1: Google Path */}
-            <div className="mb-16">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          {/* Certifications Column */}
+          <div className="lg:col-span-7">
+            {/* Google Certs */}
+            <div className="mb-14">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 pb-3 border-b border-[rgba(10,10,10,0.12)]">
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20">
-                      <Award className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-bold font-display">Google Data Analytics</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Award className="w-5 h-5 text-[#FF4F00]" />
+                    <h3 className="text-xl font-bold tracking-tight text-[#0A0A0A]">
+                      Google Data Analytics
+                    </h3>
                   </div>
-                  <p className="text-sm text-slate-500">Professional Certificate Path</p>
+                  <p className="text-xs font-mono text-[#0A0A0A]/50 uppercase tracking-wide">
+                    Professional Certificate Specialization
+                  </p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-xl p-4 min-w-[240px] shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-blue-600">Progress: 4/8 Courses</span>
-                    <span className="text-xs text-slate-500">In Progress</span>
+
+                <div className="bg-[#F7F7F8] border border-[rgba(10,10,10,0.14)] p-3 min-w-[210px]">
+                  <div className="flex items-center justify-between mb-1.5 text-xs font-mono">
+                    <span className="font-bold text-[#0A0A0A]">Course Progress: {googleCerts.length}/8</span>
+                    <span className="text-[#0A0A0A]/50">{Math.round((googleCerts.length / 8) * 100)}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      whileInView={{ width: '50%' }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, delay: 0.5 }}
-                      className="h-full bg-blue-500"
+                  <div className="w-full h-1.5 bg-white border border-[rgba(10,10,10,0.12)] overflow-hidden">
+                    <div
+                      ref={progressBarRef}
+                      className="h-full w-full bg-[#FF4F00] origin-left scale-x-0 will-change-transform"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-                {/* Roadmap connecting lines for desktop */}
-                <div className="hidden md:block absolute top-1/2 left-0 w-full h-px bg-slate-200 -translate-y-1/2 pointer-events-none" />
-                
-                {googleCertifications.map((cert, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className={`group relative p-6 rounded-2xl bg-white border ${cert.border} shadow-sm hover:shadow-md transition-all hover:-translate-y-1`}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {googleCerts.map((cert, index) => (
+                  <div
+                    key={cert.id || index}
+                    className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`w-10 h-10 rounded-lg ${cert.color} flex items-center justify-center text-white shadow-lg`}>
-                        <Award className="w-6 h-6" />
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A]">
+                          Course {index + 1}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-500 uppercase tracking-wider">
-                        Step {index + 1}
-                      </span>
+                      <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
+                        {cert.title}
+                      </h4>
+                      <p className="text-xs font-mono text-[#0A0A0A]/60 mb-4">
+                        {cert.issuer} • Via {cert.platform}
+                      </p>
                     </div>
-                    <h4 className="text-base font-bold text-slate-900 mb-2 leading-tight group-hover:text-blue-600 transition-colors">
-                      {cert.title}
-                    </h4>
-                    <div className="text-xs text-slate-500 mb-4">
-                      {cert.issuer} | Via {cert.platform}
-                    </div>
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="text-[10px] text-slate-500 font-medium">{cert.date}</span>
-                      <a 
-                        href={cert.verifyUrl} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="text-[10px] font-bold text-teal-600 hover:text-teal-500 flex items-center gap-1"
+
+                    <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
+                      <a
+                        href={cert.verifyUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#FF4F00] hover:text-[#0A0A0A] transition-colors"
                       >
-                        Verify <ExternalLink className="w-3 h-3" />
+                        <span>Verify Credential</span>
+                        <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
 
-            {/* Category 2: Specialized */}
+            {/* Specialized Certs */}
             <div>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 rounded-lg bg-teal-500/10 text-teal-600 border border-teal-500/20">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-2xl font-bold font-display">Specialized Certifications</h3>
+              <div className="flex items-center gap-2 mb-6 pb-3 border-b border-[rgba(10,10,10,0.12)]">
+                <CheckCircle2 className="w-5 h-5 text-[#FF4F00]" />
+                <h3 className="text-xl font-bold tracking-tight text-[#0A0A0A]">
+                  Specialized Engineering Certifications
+                </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {specializedCertifications.map((cert, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className={`group p-6 rounded-2xl bg-white border ${cert.border} shadow-sm hover:shadow-md transition-all hover:-translate-y-1 flex flex-col h-full`}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {specializedCerts.map((cert, index) => (
+                  <div
+                    key={cert.id || index}
+                    className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`w-12 h-12 rounded-xl ${cert.color} flex items-center justify-center text-white shadow-xl`}>
-                        <Award className="w-7 h-7" />
-                      </div>
-                      {cert.badge && (
-                        <span className="text-[10px] font-bold px-2 py-1 rounded border border-amber-500/50 text-amber-600 uppercase tracking-wider">
-                          {cert.badge}
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#FF4F00]/10 border border-[#FF4F00]/30 text-[#FF4F00]">
+                          Credential
                         </span>
-                      )}
-                    </div>
-                    
-                    <h4 className="text-lg font-bold text-slate-900 mb-2 leading-tight group-hover:text-teal-600 transition-colors">
-                      {cert.title}
-                    </h4>
-                    
-                    <div className="text-sm text-slate-600 mb-2">
-                      {cert.issuer} <span className="text-slate-300 mx-1">|</span> Via {cert.platform}
-                    </div>
-                    
-                    {cert.courseId && (
-                      <div className="text-[10px] text-slate-400 mb-2 font-mono">ID: {cert.courseId}</div>
-                    )}
-                    
-                    {cert.note && (
-                      <p className="text-xs text-slate-500 italic mb-4">{cert.note}</p>
-                    )}
+                        <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
+                      </div>
 
-                    <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-100">
-                      <span className="text-xs text-slate-500">{cert.date}</span>
-                      <a 
-                        href={cert.verifyUrl} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-900 transition-all border border-slate-200"
+                      <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
+                        {cert.title}
+                      </h4>
+
+                      <div className="text-xs font-mono text-[#0A0A0A]/60 mb-2">
+                        {cert.issuer} • Via {cert.platform}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
+                      <a
+                        href={cert.verifyUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.14)] text-[11px] font-mono font-bold text-[#0A0A0A] transition-colors"
                       >
-                        Verify Certificate
+                        <span>Verify Certificate</span>
                         <ArrowRight className="w-3 h-3" />
                       </a>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </section>

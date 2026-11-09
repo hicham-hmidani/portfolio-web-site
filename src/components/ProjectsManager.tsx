@@ -46,59 +46,65 @@ interface Project {
   stats: string;
   featured: boolean;
   platform: string;
+  imageUrl?: string;
   createdAt: any;
 }
 
 const INITIAL_PROJECTS = [
   {
     title: "Road Accident Dashboard",
-    description: "Comprehensive analysis of road accident data to identify trends and safety improvements.",
-    tools: ["Excel", "Data Cleaning", "Pivot Tables"],
-    githubUrl: "https://github.com/hicham-hmidani",
+    description: "Interactive dashboard analyzing road accident statistics with rich visualizations. Visuals included: KPI cards, monthly trend line chart (CY vs PY), casualties by vehicle type, road surface pie chart, location donut chart, light condition donut chart, filter panel. Key Insights: Cars = 79.8% of casualties | Single carriageway = most dangerous road | 62.4% accidents in daylight.",
+    tools: ["Excel", "Data Visualization", "Dashboard", "Road Safety"],
+    githubUrl: "https://github.com/hicham-hmidani/Road-Accident-Dashboard/blob/main/Road%20Accident%20Dashboard.md",
     demoUrl: "",
-    stats: "417,883 casualties analyzed",
+    stats: "🚨 Total Casualties: 417,883 | ☠️ Fatal: 7,135 (1.7%) | ⚠️ Serious: 59,312 (14.2%) | ✅ Slight: 351,436 (84.1%)",
     featured: true,
-    platform: "Excel"
+    platform: "Excel",
+    imageUrl: "https://picsum.photos/seed/road/800/450"
   },
   {
     title: "Coffee Sales Dashboard",
-    description: "Interactive sales performance tracking for a coffee retail business.",
-    tools: ["Excel", "VLOOKUP", "Charts"],
-    githubUrl: "https://github.com/hicham-hmidani",
+    description: "Sales analytics dashboard tracking coffee product performance across countries and customers. Visuals included: Timeline slicer (2019–2020), total sales over time line chart, sales by country bar chart, top 5 customers bar chart, roast type & loyalty card filters.",
+    tools: ["Excel", "Sales Analysis", "Dashboard", "Business Intelligence"],
+    githubUrl: "https://github.com/hicham-hmidani/PortfolioProjects/blob/main/Coffee%20Sales%20Dashboard",
     demoUrl: "",
-    stats: "15% revenue growth identified",
+    stats: "🇺🇸 Top Market: US — $5,449 | 🇮🇪 Ireland: $1,295 | 🇬🇧 UK: $562 | ☕ Coffee types: Arabica, Excelsa, Liberica, Robusta | 📦 Sizes: 0.2kg, 0.5kg, 1.0kg, 2.5kg | 👑 Top Customer: Brenn Dundredge — $248",
     featured: true,
-    platform: "Excel"
+    platform: "Excel",
+    imageUrl: "https://picsum.photos/seed/coffee/800/450"
   },
   {
     title: "Covid-19 Data Analysis",
-    description: "Global pandemic trend analysis using SQL for data extraction and processing.",
-    tools: ["SQL", "Data Exploration", "Joins"],
+    description: "Deep analysis of global Covid-19 data using advanced SQL queries to extract meaningful insights about pandemic trends and mortality rates.",
+    tools: ["SQL", "Data Analysis", "Public Health", "SSMS"],
     githubUrl: "https://github.com/hicham-hmidani",
     demoUrl: "",
-    stats: "200+ countries tracked",
-    featured: false,
-    platform: "SQL"
+    stats: "Advanced SQL queries for global pandemic trend analysis.",
+    featured: true,
+    platform: "SQL",
+    imageUrl: "https://picsum.photos/seed/covid/800/450"
   },
   {
     title: "Hybrid Renewable Energy Forecasting",
-    description: "Predictive modeling for energy production from multiple renewable sources.",
-    tools: ["Python", "TensorFlow", "Time Series"],
+    description: "Forecasting solar and wind energy production using machine learning and deep learning optimization. Study and analysis of chronological data.",
+    tools: ["Python", "TensorFlow", "Scikit-learn", "Time Series", "Energy"],
     githubUrl: "https://github.com/hicham-hmidani",
     demoUrl: "",
-    stats: "92% forecasting accuracy",
+    stats: "92% forecasting accuracy achieved using hybrid ML/DL models.",
     featured: true,
-    platform: "Python"
+    platform: "Python",
+    imageUrl: "https://picsum.photos/seed/energy/800/450"
   },
   {
     title: "Traffic Sign Classification",
-    description: "Deep learning model for real-time traffic sign recognition using computer vision.",
-    tools: ["Python", "Keras", "CNN", "OpenCV"],
+    description: "CNN-based deep learning model for automatic traffic sign classification and recognition with high precision.",
+    tools: ["Python", "Keras", "CNN", "Computer Vision", "Deep Learning"],
     githubUrl: "https://github.com/hicham-hmidani",
     demoUrl: "",
-    stats: "43 classes recognized",
-    featured: false,
-    platform: "Python"
+    stats: "43 classes recognized with high precision using Computer Vision.",
+    featured: true,
+    platform: "Python",
+    imageUrl: "https://picsum.photos/seed/traffic/800/450"
   }
 ];
 
@@ -119,7 +125,8 @@ export default function ProjectsManager() {
     demoUrl: '',
     stats: '',
     featured: false,
-    platform: PLATFORMS[0]
+    platform: PLATFORMS[0],
+    imageUrl: ''
   });
   const [newTool, setNewTool] = useState('');
 
@@ -153,7 +160,7 @@ export default function ProjectsManager() {
   };
 
   const seedData = async () => {
-    if (!window.confirm("This will add the 5 default projects. Continue?")) return;
+    if (!window.confirm("This will add the 5 resume projects. Continue?")) return;
     const loadingToast = toast.loading("Seeding data...");
     try {
       const batch = writeBatch(db);
@@ -162,7 +169,7 @@ export default function ProjectsManager() {
         batch.set(docRef, { ...p, createdAt: serverTimestamp() });
       });
       await batch.commit();
-      toast.success("Default projects added!", { id: loadingToast });
+      toast.success("5 default projects added!", { id: loadingToast });
       fetchProjects();
     } catch (err) {
       toast.error("Failed to seed data", { id: loadingToast });
@@ -179,7 +186,8 @@ export default function ProjectsManager() {
       demoUrl: '',
       stats: '',
       featured: false,
-      platform: PLATFORMS[0]
+      platform: PLATFORMS[0],
+      imageUrl: ''
     });
     setView('editor');
   };
@@ -194,7 +202,8 @@ export default function ProjectsManager() {
       demoUrl: project.demoUrl,
       stats: project.stats,
       featured: project.featured,
-      platform: project.platform
+      platform: project.platform,
+      imageUrl: project.imageUrl || ''
     });
     setView('editor');
   };
@@ -437,6 +446,17 @@ export default function ProjectsManager() {
                     value={formData.title}
                     onChange={(e) => setFormData({...formData, title: e.target.value})}
                     placeholder="e.g. Road Accident Dashboard"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:border-teal-500 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Image URL (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={formData.imageUrl}
+                    onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                    placeholder="https://..."
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:border-teal-500 transition-all"
                   />
                 </div>
