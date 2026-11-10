@@ -397,32 +397,45 @@ export default function Portfolio() {
   }, { scope: rootRef, dependencies: [hero.titles, hero.name, navLinks], revertOnUpdate: true });
 
   // Anchor clicks via ScrollToPlugin with header offset
-  const handleNavClick = contextSafe((e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
     setMobileMenuOpen(false);
     setActiveNav(href);
-    gsap.to(window, {
-      duration: 0.8,
-      scrollTo: {
-        y: href,
-        offsetY: 76
-      },
-      ease: "power3.inOut"
-    });
-  });
+
+    const rawId = href.startsWith('#') ? href.slice(1) : href;
+    const targetEl = document.getElementById(rawId) || document.querySelector(href);
+
+    if (targetEl) {
+      const headerOffset = 76;
+      const elementPosition = targetEl.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      gsap.to(window, {
+        duration: 0.8,
+        scrollTo: {
+          y: Math.max(0, offsetPosition),
+          autoKill: false
+        },
+        ease: 'power3.inOut'
+      });
+    } else {
+      window.location.hash = href;
+    }
+  };
 
   // Back to top click via ScrollToPlugin
-  const handleBackToTop = contextSafe((e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleBackToTop = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     setActiveNav('#about');
     gsap.to(window, {
       duration: 1,
       scrollTo: {
-        y: 0
+        y: 0,
+        autoKill: false
       },
-      ease: "power3.inOut"
+      ease: 'power3.inOut'
     });
-  });
+  };
 
   return (
     <div ref={rootRef} className="min-h-screen bg-[#FFFFFF] text-[#0A0A0A] font-sans selection:bg-[#FF4F00]/20 overflow-x-hidden relative">

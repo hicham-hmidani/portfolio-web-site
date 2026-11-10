@@ -232,7 +232,7 @@ export default function PromptEngineering({ folio = '05' }: { folio?: string } =
 
         {/* Featured Prompts Grid */}
         {displayedPrompts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16 max-w-6xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16 max-w-6xl mx-auto">
             {displayedPrompts.map((prompt) => (
               <div
                 key={prompt.id}
@@ -302,7 +302,7 @@ export default function PromptEngineering({ folio = '05' }: { folio?: string } =
         )}
 
         {/* Creator Profile Summary & Metrics Block (Hairline-separated rows) */}
-        <div className="bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] p-6 md:p-10 max-w-5xl">
+        <div className="bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] p-6 md:p-10 max-w-5xl mx-auto">
           {/* Creator Profile Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-8 border-b border-[rgba(10,10,10,0.16)] bg-white p-6 border">
             <div className="flex items-center gap-5">

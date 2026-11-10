@@ -54,6 +54,19 @@ import {
   SECTION_METAS
 } from '../content/layoutDefaults';
 
+const SECTION_EDIT_ROUTES: Record<string, string> = {
+  'hero': '/admin/portfolio',
+  'skills': '/admin/portfolio',
+  'experience': '/admin/portfolio',
+  'projects': '/admin/projects',
+  'prompt-engineering': '/admin/portfolio',
+  'featured-service': '/admin/portfolio',
+  'blog': '/admin/blog',
+  'education': '/admin/education',
+  'work-with-me': '/admin/work-with-me',
+  'contact': '/admin/portfolio'
+};
+
 // Sortable Row Component for Middle Sections
 function SortableSectionRow({
   item,
@@ -80,6 +93,7 @@ function SortableSectionRow({
   };
 
   const isVisible = item.visible !== false;
+  const editRoute = SECTION_EDIT_ROUTES[item.id] || '/admin/portfolio';
 
   return (
     <div
@@ -127,6 +141,14 @@ function SortableSectionRow({
       </div>
 
       <div className="flex items-center gap-3 self-end sm:self-center">
+        <Link
+          to={editRoute}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 transition-all"
+          title={`Edit ${meta.fullName} content`}
+        >
+          <PenTool className="w-3.5 h-3.5 text-teal-400" />
+          <span>Edit</span>
+        </Link>
         <button
           onClick={() => onToggleVisible(item.id)}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
@@ -391,8 +413,18 @@ export default function SectionsManager() {
                   </p>
                 </div>
               </div>
-              <div className="px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium text-slate-400 bg-slate-800/50 border border-slate-700/50">
-                Always Visible
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/admin/portfolio"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 transition-all"
+                  title="Edit Hero & About content"
+                >
+                  <PenTool className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Edit</span>
+                </Link>
+                <div className="px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium text-slate-400 bg-slate-800/50 border border-slate-700/50">
+                  Always Visible
+                </div>
               </div>
             </div>
 
@@ -434,8 +466,18 @@ export default function SectionsManager() {
                   </p>
                 </div>
               </div>
-              <div className="px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium text-slate-400 bg-slate-800/50 border border-slate-700/50">
-                Always Visible
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/admin/portfolio"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 transition-all"
+                  title="Edit Contact content"
+                >
+                  <PenTool className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Edit</span>
+                </Link>
+                <div className="px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium text-slate-400 bg-slate-800/50 border border-slate-700/50">
+                  Always Visible
+                </div>
               </div>
             </div>
           </div>
