@@ -791,7 +791,7 @@ export default function Portfolio() {
           <div className="pt-10 pb-8 overflow-hidden select-none">
             <h2
               ref={footerWordmarkRef}
-              className="text-[13vw] font-bold tracking-tighter text-[#0A0A0A] leading-[0.88] whitespace-nowrap will-change-transform uppercase"
+              className="text-[8.5vw] sm:text-[9vw] lg:text-[9.2vw] font-bold tracking-tighter text-[#0A0A0A] leading-[0.88] whitespace-nowrap will-change-transform uppercase"
             >
               Hicham Hmidani
             </h2>
