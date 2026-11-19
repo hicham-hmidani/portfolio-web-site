@@ -1,12 +1,27 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/admin", "destination": "/admin/login.html" },
-    { "source": "/admin/", "destination": "/admin/login.html" },
-    { "source": "/admin/dashboard", "destination": "/admin/dashboard.html" },
-    { "source": "/admin/blog", "destination": "/admin/blog-manager.html" },
-    { "source": "/admin/portfolio", "destination": "/admin/portfolio-editor.html" },
-    { "source": "/admin/projects", "destination": "/admin/projects-manager.html" },
-    { "source": "/admin/messages", "destination": "/admin/messages.html" },
-    { "source": "/admin/marketplace", "destination": "/admin/marketplace-manager.html" }
+    {
+      "source": "/((?!assets/|favicon\\.svg|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
   ]
 }
