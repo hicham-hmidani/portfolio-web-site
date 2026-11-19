@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   X, 
   History, 
@@ -6,15 +6,13 @@ import {
   ChevronDown, 
   ChevronUp, 
   Loader2, 
-  Clock, 
   CheckCircle2, 
-  AlertCircle,
-  FileText,
-  ArrowRight
+  FileText
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase-config';
 import { saveSection, getSectionVersions, SectionVersion } from '../saveSection';
+import ConfirmDialog from './ConfirmDialog';
 import toast from 'react-hot-toast';
 
 interface HistoryDrawerProps {
@@ -53,6 +51,18 @@ interface FieldDiff {
   status: 'changed' | 'added' | 'removed';
 }
 
+function stableStringify(val: unknown): string {
+  if (val === null || typeof val !== 'object') {
+    return JSON.stringify(val);
+  }
+  if (Array.isArray(val)) {
+    return `[${val.map((item) => stableStringify(item)).join(',')}]`;
+  }
+  const obj = val as Record<string, unknown>;
+  const sortedKeys = Object.keys(obj).sort();
+  return `{${sortedKeys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+}
+
 function computeDiff(versionData: Record<string, any>, currentData: Record<string, any>): FieldDiff[] {
   const diffs: FieldDiff[] = [];
   const ignoredKeys = new Set(['updatedAt', 'savedAt', 'timestamp', 'docId']);
@@ -72,8 +82,8 @@ function computeDiff(versionData: Record<string, any>, currentData: Record<strin
     } else if (hasOld && !hasCurrent) {
       diffs.push({ key: k, oldVal, currentVal: undefined, status: 'removed' });
     } else {
-      const oldStr = JSON.stringify(oldVal);
-      const currStr = JSON.stringify(currentVal);
+      const oldStr = stableStringify(oldVal);
+      const currStr = stableStringify(currentVal);
       if (oldStr !== currStr) {
         diffs.push({ key: k, oldVal, currentVal, status: 'changed' });
       }
@@ -95,48 +105,50 @@ export default function HistoryDrawer({
   const [currentDoc, setCurrentDoc] = useState<Record<string, any> | null>(null);
   const [expandedDiffId, setExpandedDiffId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<SectionVersion | null>(null);
 
-  const fetchVersionsAndCurrent = async () => {
+  const fetchVersionsAndCurrent = useCallback(async (isCancelled?: () => boolean) => {
     setLoading(true);
     try {
-      // 1. Fetch current live doc
-      const currentSnap = await getDoc(doc(db, 'portfolio_content', docId));
-      if (currentSnap.exists()) {
-        setCurrentDoc(currentSnap.data());
-      } else {
-        setCurrentDoc({});
-      }
-
-      // 2. Fetch versions
-      const vers = await getSectionVersions(docId);
+      const [currentSnap, vers] = await Promise.all([
+        getDoc(doc(db, 'portfolio_content', docId)),
+        getSectionVersions(docId)
+      ]);
+      if (isCancelled?.()) return;
+      setCurrentDoc(currentSnap.exists() ? currentSnap.data() : {});
       setVersions(vers);
     } catch (err) {
+      if (isCancelled?.()) return;
       console.error('Error fetching version history:', err);
       toast.error('Failed to load version history');
     } finally {
-      setLoading(false);
+      if (!isCancelled?.()) {
+        setLoading(false);
+      }
     }
-  };
+  }, [docId]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchVersionsAndCurrent();
-      setExpandedDiffId(null);
-    }
-  }, [isOpen, docId]);
+    if (!isOpen) return;
+    let cancelled = false;
+    setExpandedDiffId(null);
+    setRestoreTarget(null);
+    fetchVersionsAndCurrent(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, fetchVersionsAndCurrent]);
 
   if (!isOpen) return null;
 
-  const handleRestore = async (version: SectionVersion) => {
+  const confirmRestore = async () => {
+    const version = restoreTarget;
+    if (!version) return;
+    setRestoreTarget(null);
     const formattedDate = new Date(version.timestamp).toLocaleString();
-    const confirmed = confirm(
-      `Restore version from ${formattedDate}?\n\nA backup of current data will be saved to history first, then this version will be applied.`
-    );
-    if (!confirmed) return;
 
     setRestoringId(version.id);
     try {
-      // Calling saveSection automatically backs up current doc to versions first!
       await saveSection(docId, version.data, {
         notify: true,
         successMessage: `Restored version from ${formattedDate}`
@@ -146,7 +158,6 @@ export default function HistoryDrawer({
         onRestored(version.data);
       }
 
-      // Refresh list to show the new version created by saveSection
       await fetchVersionsAndCurrent();
     } catch (err) {
       console.error('Error restoring version:', err);
@@ -221,9 +232,9 @@ export default function HistoryDrawer({
                     key={ver.id}
                     className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 transition-all hover:border-slate-700"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-xs font-bold text-white">
                             {dateObj.toLocaleDateString('en-US', {
                               month: 'short',
@@ -251,7 +262,7 @@ export default function HistoryDrawer({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => setExpandedDiffId(isExpanded ? null : ver.id)}
@@ -264,7 +275,7 @@ export default function HistoryDrawer({
                         <button
                           type="button"
                           disabled={isRestoring}
-                          onClick={() => handleRestore(ver)}
+                          onClick={() => setRestoreTarget(ver)}
                           className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold font-mono flex items-center gap-1.5 transition-colors disabled:opacity-50"
                         >
                           <RotateCcw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
@@ -334,6 +345,19 @@ export default function HistoryDrawer({
           )}
         </div>
       </aside>
+
+      <ConfirmDialog
+        isOpen={Boolean(restoreTarget)}
+        title="Restore Version Snapshot"
+        message={
+          restoreTarget
+            ? `Restore snapshot from ${new Date(restoreTarget.timestamp).toLocaleString()}?\n\nA backup of current data will be archived to history first, then this version will be applied.`
+            : ''
+        }
+        confirmLabel="Restore Snapshot"
+        onConfirm={confirmRestore}
+        onCancel={() => setRestoreTarget(null)}
+      />
     </div>
   );
 }

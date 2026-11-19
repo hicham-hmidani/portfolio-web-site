@@ -16,7 +16,7 @@ export function useSectionDoc<T>(docId: string, defaults: T) {
       }
       setLoading(false);
     }, (err) => {
-      console.error(`Error loading section doc ${docId}:`, err);
+      console.warn(`Notice: using default data for section doc ${docId}:`, err);
       setData(defaults);
       setLoading(false);
     });

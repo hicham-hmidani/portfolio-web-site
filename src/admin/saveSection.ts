@@ -46,8 +46,13 @@ export async function saveSection(
 
         // Keep the last 10 versions, delete older ones
         const versionsSnap = await getDocs(collection(db, 'portfolio_content', docId, 'versions'));
-        // Sort descending by version document ID (timestamp)
-        const sortedDocs = [...versionsSnap.docs].sort((a, b) => b.id.localeCompare(a.id));
+        // Sort descending by numeric timestamp ID (falling back gracefully for non-numeric IDs)
+        const sortedDocs = [...versionsSnap.docs].sort((a, b) => {
+          const numA = Number(a.id) || 0;
+          const numB = Number(b.id) || 0;
+          if (numA !== numB) return numB - numA;
+          return b.id.localeCompare(a.id);
+        });
         if (sortedDocs.length > 10) {
           const toDelete = sortedDocs.slice(10);
           await Promise.all(toDelete.map((d) => deleteDoc(d.ref)));

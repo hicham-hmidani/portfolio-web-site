@@ -4,14 +4,29 @@ import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap';
 import { useSectionDoc } from '../hooks/useSectionDoc';
 import { educationDefaults, certificationsDefaults, EducationItem, CertificationItem } from '../content/educationDefaults';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
+import { safeHref } from '../lib/url';
+
+function parseDateLocal(dateStr: string): Date | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    return new Date(year, month, day);
+  }
+  const parsed = Date.parse(dateStr);
+  return isNaN(parsed) ? null : new Date(parsed);
+}
 
 function deriveCertDateSpan(certs: { date: string }[]): string {
-  const timestamps = certs
-    .map(c => Date.parse(c.date))
-    .filter(t => !isNaN(t));
+  const dates = certs
+    .map(c => parseDateLocal(c.date))
+    .filter((d): d is Date => d !== null);
 
-  if (timestamps.length === 0) return "Nov 2023 – Feb 2024";
+  if (dates.length === 0) return "Nov 2023 – Feb 2024";
 
+  const timestamps = dates.map(d => d.getTime());
   const minDate = new Date(Math.min(...timestamps));
   const maxDate = new Date(Math.max(...timestamps));
 
@@ -34,12 +49,17 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
 
   const googleCerts = visibleCertifications.filter(c => c.group === 'Google');
   const specializedCerts = visibleCertifications.filter(c => c.group === 'Specialized');
+  const googleProgress = Math.min(1, Math.max(0, googleCerts.length / 8));
 
   const totalCertifications = visibleCertifications.length;
 
   const institutionSet = new Set<string>();
-  visibleEducation.forEach(e => institutionSet.add(e.institution));
-  visibleCertifications.forEach(c => institutionSet.add(c.issuer));
+  visibleEducation.forEach(e => {
+    if (e.institution) institutionSet.add(e.institution);
+  });
+  visibleCertifications.forEach(c => {
+    if (c.issuer) institutionSet.add(c.issuer);
+  });
   const totalInstitutions = institutionSet.size;
 
   const certTimeline = deriveCertDateSpan(visibleCertifications);
@@ -57,7 +77,7 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
 
       if (isReduced) {
         if (headerHairlineRef.current) gsap.set(headerHairlineRef.current, { scaleX: 1, autoAlpha: 1 });
-        if (progressBarRef.current) gsap.set(progressBarRef.current, { scaleX: 0.5 });
+        if (progressBarRef.current) gsap.set(progressBarRef.current, { scaleX: googleProgress });
         gsap.set(".education-item", { autoAlpha: 1, x: 0 });
         gsap.set(".certification-card", { autoAlpha: 1, y: 0 });
         return;
@@ -106,7 +126,7 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
         gsap.fromTo(progressBarRef.current,
           { scaleX: 0, transformOrigin: "left center" },
           {
-            scaleX: 0.5,
+            scaleX: googleProgress,
             duration: 0.9,
             ease: "power2.out",
             scrollTrigger: {
@@ -154,13 +174,12 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
         }
       });
     });
-  }, { scope: sectionRef, dependencies: [visibleEducation, visibleCertifications], revertOnUpdate: true });
+  }, { scope: sectionRef, dependencies: [visibleEducation, visibleCertifications, googleProgress], revertOnUpdate: true });
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    const parsed = Date.parse(dateStr);
-    if (isNaN(parsed)) return dateStr;
-    return new Date(parsed).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const parsed = parseDateLocal(dateStr);
+    if (!parsed) return dateStr || '';
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   return (
@@ -319,39 +338,46 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {googleCerts.map((cert, index) => (
-                  <div
-                    key={cert.id || index}
-                    className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between mb-3">
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A]">
-                          Course {index + 1}
-                        </span>
-                        <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
+                {googleCerts.map((cert, index) => {
+                  const verifyHref = safeHref(cert.verifyUrl);
+                  return (
+                    <div
+                      key={cert.id || index}
+                      className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#F7F7F8] border border-[rgba(10,10,10,0.12)] text-[#0A0A0A]">
+                            Course {index + 1}
+                          </span>
+                          <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
+                          {cert.title}
+                        </h4>
+                        <p className="text-xs font-mono text-[#0A0A0A]/60 mb-4">
+                          {cert.issuer} • Via {cert.platform}
+                        </p>
                       </div>
-                      <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
-                        {cert.title}
-                      </h4>
-                      <p className="text-xs font-mono text-[#0A0A0A]/60 mb-4">
-                        {cert.issuer} • Via {cert.platform}
-                      </p>
-                    </div>
 
-                    <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
-                      <a
-                        href={cert.verifyUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#FF4F00] hover:text-[#0A0A0A] transition-colors"
-                      >
-                        <span>Verify Credential</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
+                        {verifyHref ? (
+                          <a
+                            href={verifyHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#FF4F00] hover:text-[#0A0A0A] transition-colors"
+                          >
+                            <span>Verify Credential</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] font-mono text-[#0A0A0A]/40">Verified Credential</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -365,41 +391,48 @@ export default function Education({ folio = '08' }: { folio?: string } = {}) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {specializedCerts.map((cert, index) => (
-                  <div
-                    key={cert.id || index}
-                    className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between mb-3">
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#FF4F00]/10 border border-[#FF4F00]/30 text-[#FF4F00]">
-                          Credential
-                        </span>
-                        <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
+                {specializedCerts.map((cert, index) => {
+                  const verifyHref = safeHref(cert.verifyUrl);
+                  return (
+                    <div
+                      key={cert.id || index}
+                      className="certification-card p-5 bg-[#FFFFFF] border border-[rgba(10,10,10,0.14)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[#FF4F00]/10 border border-[#FF4F00]/30 text-[#FF4F00]">
+                            Credential
+                          </span>
+                          <span className="text-[10px] font-mono text-[#0A0A0A]/50">{formatDate(cert.date)}</span>
+                        </div>
+
+                        <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
+                          {cert.title}
+                        </h4>
+
+                        <div className="text-xs font-mono text-[#0A0A0A]/60 mb-2">
+                          {cert.issuer} • Via {cert.platform}
+                        </div>
                       </div>
 
-                      <h4 className="text-sm font-bold text-[#0A0A0A] mb-2 leading-snug">
-                        {cert.title}
-                      </h4>
-
-                      <div className="text-xs font-mono text-[#0A0A0A]/60 mb-2">
-                        {cert.issuer} • Via {cert.platform}
+                      <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
+                        {verifyHref ? (
+                          <a
+                            href={verifyHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.14)] text-[11px] font-mono font-bold text-[#0A0A0A] transition-colors"
+                          >
+                            <span>Verify Certificate</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] font-mono text-[#0A0A0A]/40">Verified Credential</span>
+                        )}
                       </div>
                     </div>
-
-                    <div className="pt-3 border-t border-[rgba(10,10,10,0.08)] flex justify-end">
-                      <a
-                        href={cert.verifyUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.14)] text-[11px] font-mono font-bold text-[#0A0A0A] transition-colors"
-                      >
-                        <span>Verify Certificate</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -59,12 +59,23 @@ export default function Skills({ folio = '02' }: { folio?: string } = {}) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.categories && Array.isArray(data.categories)) {
-          setCategories(data.categories.map((c: any) => ({
-            title: c.title || '',
-            skills: Array.isArray(c.skills) ? c.skills : []
-          })));
+          const normalized = data.categories
+            .map((c: any) => ({
+              title: String(c?.title || c?.name || '').trim(),
+              skills: Array.isArray(c?.skills)
+                ? c.skills.filter((s: unknown) => typeof s === 'string' && s.trim())
+                : Array.isArray(c?.items)
+                ? c.items.filter((s: unknown) => typeof s === 'string' && s.trim())
+                : []
+            }))
+            .filter((c: SkillCategory) => c.title.length > 0 || c.skills.length > 0);
+          if (normalized.length > 0) {
+            setCategories(normalized);
+          }
         }
       }
+    }, (err) => {
+      console.warn('Could not sync skills doc, using defaults:', err);
     });
     return () => unsub();
   }, []);

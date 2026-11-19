@@ -14,9 +14,15 @@ export default function AdminLogin() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        navigate('/admin/dashboard');
+        const isAllowedAdmin = user.email?.toLowerCase() === 'hmidanihicham8@gmail.com';
+        if (isAllowedAdmin) {
+          navigate('/admin/dashboard');
+        } else {
+          await auth.signOut();
+          setError('Access restricted to authorized administrator account.');
+        }
       }
     });
     return () => unsubscribe();
@@ -27,8 +33,11 @@ export default function AdminLogin() {
     setLoading(true);
     setError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate('/admin/dashboard');
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      if (cred.user.email?.toLowerCase() !== 'hmidanihicham8@gmail.com') {
+        await auth.signOut();
+        setError('Access restricted to authorized administrator account.');
+      }
     } catch (err: any) {
       setError('Invalid credentials. Access denied.');
       console.error('Login error:', err);
@@ -41,8 +50,11 @@ export default function AdminLogin() {
     setGoogleLoading(true);
     setError('');
     try {
-      await signInWithPopup(auth, googleProvider);
-      navigate('/admin/dashboard');
+      const cred = await signInWithPopup(auth, googleProvider);
+      if (cred.user.email?.toLowerCase() !== 'hmidanihicham8@gmail.com') {
+        await auth.signOut();
+        setError('Access restricted to authorized administrator account.');
+      }
     } catch (err: any) {
       setError('Google sign-in failed. Please try again.');
       console.error('Google login error:', err);

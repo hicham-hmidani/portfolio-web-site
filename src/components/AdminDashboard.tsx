@@ -20,7 +20,9 @@ import {
   Clock,
   GraduationCap,
   Briefcase,
-  Layers
+  Layers,
+  Menu,
+  X
 } from 'lucide-react';
 import { 
   collection, 
@@ -65,6 +67,8 @@ export default function AdminDashboard() {
     publishedPosts: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -106,6 +110,8 @@ export default function AdminDashboard() {
     const qMessages = query(collection(db, 'contact_messages'), where('read', '==', false));
     const unsubMessages = onSnapshot(qMessages, (snap) => {
       setStats(prev => ({ ...prev, unreadMessages: snap.size }));
+    }, (err) => {
+      console.warn('Could not sync unread messages count:', err);
     });
 
     // Fetch Recent Activity
@@ -114,40 +120,40 @@ export default function AdminDashboard() {
         const activities: any[] = [];
         
         // Latest Posts
-        const postsQ = query(collection(db, 'blog_posts'), orderBy('createdAt', 'desc'), limit(2));
+        const postsQ = query(collection(db, 'blog_posts'), orderBy('createdAt', 'desc'), limit(4));
         const postsSnap = await getDocs(postsQ);
-        postsSnap.forEach(doc => {
+        postsSnap.forEach(docSnap => {
           activities.push({
-            id: doc.id,
+            id: `post-${docSnap.id}`,
             type: 'post',
-            title: doc.data().title,
-            date: doc.data().createdAt,
+            title: docSnap.data().title || 'Untitled Post',
+            date: docSnap.data().createdAt,
             icon: <PenTool className="w-4 h-4 text-teal-500" />
           });
         });
 
         // Latest Messages
-        const messagesQ = query(collection(db, 'contact_messages'), orderBy('receivedAt', 'desc'), limit(2));
+        const messagesQ = query(collection(db, 'contact_messages'), orderBy('receivedAt', 'desc'), limit(4));
         const messagesSnap = await getDocs(messagesQ);
-        messagesSnap.forEach(doc => {
+        messagesSnap.forEach(docSnap => {
           activities.push({
-            id: doc.id,
+            id: `msg-${docSnap.id}`,
             type: 'message',
-            title: `Message from ${doc.data().from_name}`,
-            date: doc.data().receivedAt,
+            title: `Message from ${docSnap.data().from_name || 'Visitor'}`,
+            date: docSnap.data().receivedAt,
             icon: <Mail className="w-4 h-4 text-yellow-500" />
           });
         });
 
         // Latest Projects
-        const projectsQ = query(collection(db, 'projects'), orderBy('createdAt', 'desc'), limit(1));
+        const projectsQ = query(collection(db, 'projects'), orderBy('createdAt', 'desc'), limit(4));
         const projectsSnap = await getDocs(projectsQ);
-        projectsSnap.forEach(doc => {
+        projectsSnap.forEach(docSnap => {
           activities.push({
-            id: doc.id,
+            id: `proj-${docSnap.id}`,
             type: 'project',
-            title: `New Project: ${doc.data().title}`,
-            date: doc.data().createdAt,
+            title: `New Project: ${docSnap.data().title || 'Untitled Project'}`,
+            date: docSnap.data().createdAt,
             icon: <FolderKanban className="w-4 h-4 text-blue-500" />
           });
         });
@@ -156,7 +162,7 @@ export default function AdminDashboard() {
           const dateA = a.date?.toMillis?.() || 0;
           const dateB = b.date?.toMillis?.() || 0;
           return dateB - dateA;
-        }).slice(0, 5));
+        }));
       } catch (err) {
         console.error('Error fetching activity:', err);
       }
@@ -197,24 +203,47 @@ export default function AdminDashboard() {
     );
   }
 
+  const displayedActivities = showAllActivity ? recentActivity : recentActivity.slice(0, 5);
+
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white flex">
+      {/* Mobile Sidebar Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50">
-        <div className="p-6">
+      <aside
+        className={`w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50 transition-transform duration-200 lg:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 flex items-center justify-between">
           <Link to="/admin/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-yellow-500 flex items-center justify-center text-white font-bold">
               HH
             </div>
             <span className="text-xl font-bold font-display tracking-tight text-white">Dashboard</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               to={link.path}
+              onClick={() => setMobileMenuOpen(false)}
               className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                 location.pathname === link.path 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' 
@@ -225,7 +254,7 @@ export default function AdminDashboard() {
                 {link.icon}
                 <span className="font-medium">{link.name}</span>
               </div>
-              {link.badge > 0 && (
+              {(link.badge ?? 0) > 0 && (
                 <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {link.badge}
                 </span>
@@ -238,6 +267,7 @@ export default function AdminDashboard() {
           <a 
             href="/" 
             target="_blank" 
+            rel="noreferrer"
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
           >
             <ExternalLink className="w-5 h-5" />
@@ -254,31 +284,40 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen min-w-0">
         {/* Header */}
-        <header className="h-20 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 sticky top-0 z-40">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-white">Welcome back, Hicham 👋</h2>
+        <header className="h-20 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg sm:text-xl font-semibold text-white truncate">Welcome back, Hicham</h2>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <a 
               href="https://hichamhmidani.com" 
               target="_blank" 
-              className="text-sm text-slate-400 hover:text-teal-500 transition-colors flex items-center gap-2"
+              rel="noreferrer"
+              className="hidden sm:flex text-sm text-slate-400 hover:text-teal-500 transition-colors items-center gap-2"
             >
               hichamhmidani.com
               <ExternalLink className="w-3 h-3" />
             </a>
-            <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-teal-500 font-bold">
+            <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-teal-500 font-bold shrink-0">
               H
             </div>
           </div>
         </header>
 
         {/* Content Area */}
-        <main className="p-8 space-y-8">
+        <main className="p-4 sm:p-8 space-y-8">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
             <StatCard 
               title="Total Blog Posts" 
               value={stats.totalPosts} 
@@ -320,12 +359,18 @@ export default function AdminDashboard() {
                     <Clock className="w-6 h-6 text-teal-500" />
                     Recent Activity
                   </h3>
-                  <button className="text-sm text-teal-500 hover:underline">View All</button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllActivity((prev) => !prev)}
+                    className="text-sm text-teal-500 hover:underline"
+                  >
+                    {showAllActivity ? 'Show Less' : 'View All'}
+                  </button>
                 </div>
 
                 <div className="space-y-6">
-                  {recentActivity.length > 0 ? (
-                    recentActivity.map((activity) => (
+                  {displayedActivities.length > 0 ? (
+                    displayedActivities.map((activity) => (
                       <div key={activity.id} className="flex items-start gap-4 p-4 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-all">
                         <div className="p-3 rounded-xl bg-slate-800">
                           {activity.icon}

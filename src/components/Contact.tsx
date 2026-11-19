@@ -3,6 +3,7 @@ import { Mail, Phone, MapPin, Linkedin, Github, Send, Bot, Briefcase } from 'luc
 import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap';
+import { safeHref } from '../lib/url';
 
 declare global {
   interface Window {
@@ -10,28 +11,45 @@ declare global {
   }
 }
 
+const DEFAULT_CONTACT = {
+  email: 'hmidanihicham8@gmail.com',
+  phone: '+212 631649374',
+  location: 'Ouarzazate, Morocco',
+  socials: {
+    linkedin: 'https://linkedin.com/in/hicham-hmidani-b55a5521b/',
+    github: 'https://github.com/hicham-hmidani',
+    promptbase: 'https://promptbase.com/profile/camih8',
+    upwork: 'https://www.upwork.com/'
+  }
+};
+
 export default function Contact({ folio = '10' }: { folio?: string } = {}) {
   const rootRef = useRef<HTMLElement>(null);
   const hairlineRef = useRef<HTMLDivElement>(null);
   const formCardRef = useRef<HTMLDivElement>(null);
   const infoCardRef = useRef<HTMLDivElement>(null);
 
-  const [contact, setContact] = useState({
-    email: 'hmidanihicham8@gmail.com',
-    phone: '+212 631649374',
-    location: 'Ouarzazate, Morocco',
-    socials: {
-      linkedin: 'https://linkedin.com/in/hicham-hmidani-b55a5521b/',
-      github: 'https://github.com/hicham-hmidani',
-      promptbase: 'https://promptbase.com/profile/camih8',
-      upwork: 'https://www.upwork.com/'
-    }
-  });
+  const [contact, setContact] = useState(DEFAULT_CONTACT);
 
   // Keep Firestore listener intact
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'portfolio_content', 'contact'), (docSnap) => {
-      if (docSnap.exists()) setContact(docSnap.data() as any);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Partial<typeof DEFAULT_CONTACT>;
+        setContact({
+          email: data.email || DEFAULT_CONTACT.email,
+          phone: data.phone || DEFAULT_CONTACT.phone,
+          location: data.location || DEFAULT_CONTACT.location,
+          socials: {
+            ...DEFAULT_CONTACT.socials,
+            ...(data.socials || {}),
+          },
+        });
+      } else {
+        setContact(DEFAULT_CONTACT);
+      }
+    }, (err) => {
+      console.warn('Could not sync contact doc, using defaults:', err);
     });
     return () => unsub();
   }, []);
@@ -49,9 +67,17 @@ export default function Contact({ folio = '10' }: { folio?: string } = {}) {
       const status = document.getElementById('form-status') as HTMLParagraphElement | null;
       
       const formData = new FormData(this);
-      const from_name = formData.get('from_name') as string;
-      const from_email = formData.get('from_email') as string;
-      const message = formData.get('message') as string;
+      const from_name = String(formData.get('from_name') || '').trim();
+      const from_email = String(formData.get('from_email') || '').trim();
+      const message = String(formData.get('message') || '').trim();
+
+      if (!from_name || !from_email || !message) {
+        if (status) {
+          status.style.color = '#dc2626';
+          status.innerText = 'Please complete your name, email, and message.';
+        }
+        return;
+      }
 
       if (btn && status) {
         btn.innerText = 'Sending...';
@@ -73,6 +99,7 @@ export default function Contact({ folio = '10' }: { folio?: string } = {}) {
           }
 
           btn.innerText = 'Message Sent';
+          btn.disabled = false;
           status.style.color = '#FF4F00';
           status.innerText = 'Thank you. I will reply within 24 hours.';
           this.reset();
@@ -318,42 +345,60 @@ export default function Contact({ folio = '10' }: { folio?: string } = {}) {
             <div className="contact-info-item mt-12 pt-6 border-t border-[rgba(10,10,10,0.12)]">
               <p className="text-[10px] font-mono uppercase tracking-widest text-[#0A0A0A]/50 mb-3">Professional Profiles</p>
               <div className="flex flex-wrap gap-2">
-                <a 
-                  href={contact.socials.linkedin} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
-                >
-                  <Linkedin className="w-3.5 h-3.5" />
-                  <span>LinkedIn</span>
-                </a>
-                <a 
-                  href={contact.socials.github} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
-                >
-                  <Github className="w-3.5 h-3.5" />
-                  <span>GitHub</span>
-                </a>
-                <a 
-                  href={contact.socials.promptbase} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span>PromptBase</span>
-                </a>
-                <a 
-                  href={contact.socials.upwork} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
-                >
-                  <Briefcase className="w-3.5 h-3.5" />
-                  <span>Upwork</span>
-                </a>
+                {(() => {
+                  const linkedinUrl = safeHref(contact.socials?.linkedin);
+                  const githubUrl = safeHref(contact.socials?.github);
+                  const promptbaseUrl = safeHref(contact.socials?.promptbase);
+                  const upworkUrl = safeHref(contact.socials?.upwork);
+                  return (
+                    <>
+                      {linkedinUrl && (
+                        <a 
+                          href={linkedinUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
+                        >
+                          <Linkedin className="w-3.5 h-3.5" />
+                          <span>LinkedIn</span>
+                        </a>
+                      )}
+                      {githubUrl && (
+                        <a 
+                          href={githubUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
+                        >
+                          <Github className="w-3.5 h-3.5" />
+                          <span>GitHub</span>
+                        </a>
+                      )}
+                      {promptbaseUrl && (
+                        <a 
+                          href={promptbaseUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                          <span>PromptBase</span>
+                        </a>
+                      )}
+                      {upworkUrl && (
+                        <a 
+                          href={upworkUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="px-3.5 py-2 bg-white text-[#0A0A0A] border border-[rgba(10,10,10,0.16)] hover:border-[#FF4F00] hover:text-[#FF4F00] transition-colors font-mono text-xs flex items-center gap-2"
+                        >
+                          <Briefcase className="w-3.5 h-3.5" />
+                          <span>Upwork</span>
+                        </a>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>

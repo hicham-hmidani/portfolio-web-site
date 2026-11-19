@@ -4,6 +4,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
+import { safeHref } from '../lib/url';
 
 interface ExperienceItem {
   title: string;
@@ -95,16 +96,20 @@ export default function Experience({ folio = '03' }: { folio?: string } = {}) {
             company: exp.company || '',
             date: exp.date || '',
             badge: exp.badge || '',
-            link: exp.link || '',
+            link: safeHref(exp.link) || '',
             description: Array.isArray(exp.bulletPoints)
               ? exp.bulletPoints
               : Array.isArray(exp.description)
               ? exp.description
+              : Array.isArray(exp.points)
+              ? exp.points
               : []
           }));
           setExperiences(merged);
         }
       }
+    }, (err) => {
+      console.warn('Could not sync experience doc, using defaults:', err);
     });
     return () => unsub();
   }, []);
@@ -341,9 +346,9 @@ export default function Experience({ folio = '03' }: { folio?: string } = {}) {
 
                       <div className="mb-5 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#0A0A0A]/60">
                         <Briefcase className="w-3.5 h-3.5 text-[#FF4F00]" />
-                        {exp.link ? (
+                        {safeHref(exp.link) ? (
                           <a
-                            href={exp.link}
+                            href={safeHref(exp.link)}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 hover:text-[#FF4F00] transition-colors"

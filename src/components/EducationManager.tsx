@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase-config';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   Loader2, 
   Plus, 
@@ -27,11 +27,14 @@ import {
   LogOut,
   Briefcase,
   Layers,
-  History
+  History,
+  Menu
 } from 'lucide-react';
 import { saveSection } from '../admin/saveSection';
 import HistoryDrawer from '../admin/ui/HistoryDrawer';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import ConfirmDialog from '../admin/ui/ConfirmDialog';
+import { isValidUrlInput } from '../lib/url';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   DndContext, 
   closestCenter, 
@@ -133,6 +136,7 @@ export default function EducationManager() {
   const [saving, setSaving] = useState(false);
   const [sortDesc, setSortDesc] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Edit / Add modal states
   const [editingEdu, setEditingEdu] = useState<EducationItem | null>(null);
@@ -140,7 +144,14 @@ export default function EducationManager() {
   const [isEduModalOpen, setIsEduModalOpen] = useState(false);
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
 
+  // Confirm dialogs replacing window.confirm
+  const [deleteEduId, setDeleteEduId] = useState<string | null>(null);
+  const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
+  const [pendingDuplicateEdu, setPendingDuplicateEdu] = useState<EducationItem | null>(null);
+  const [pendingDuplicateCert, setPendingDuplicateCert] = useState<CertificationItem | null>(null);
+
   const navigate = useNavigate();
+  const location = useLocation();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -163,6 +174,8 @@ export default function EducationManager() {
       } else {
         setEducationList(educationDefaults.items);
       }
+    }, (err) => {
+      console.warn('Error listening to education doc:', err);
     });
 
     const unsubCert = onSnapshot(doc(db, 'portfolio_content', 'certifications'), (snap) => {
@@ -171,6 +184,8 @@ export default function EducationManager() {
       } else {
         setCertificationsList(certificationsDefaults.items);
       }
+    }, (err) => {
+      console.warn('Error listening to certifications doc:', err);
     });
 
     return () => {
@@ -237,10 +252,19 @@ export default function EducationManager() {
     }
   };
 
+  const parseDateMs = (dateStr: string): number => {
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec((dateStr || '').trim());
+    if (m) {
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+    }
+    const parsed = Date.parse(dateStr || '');
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
   const handleSortCertsByDate = () => {
     const sorted = [...certificationsList].sort((a, b) => {
-      const timeA = Date.parse(a.date) || 0;
-      const timeB = Date.parse(b.date) || 0;
+      const timeA = parseDateMs(a.date);
+      const timeB = parseDateMs(b.date);
       return sortDesc ? timeA - timeB : timeB - timeA;
     });
     setSortDesc(!sortDesc);
@@ -276,22 +300,43 @@ export default function EducationManager() {
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white flex">
       <Toaster position="top-right" />
+
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50">
-        <div className="p-6">
+      <aside
+        className={`w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50 transition-transform duration-200 lg:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 flex items-center justify-between">
           <Link to="/admin/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-yellow-500 flex items-center justify-center text-white font-bold">
               HH
             </div>
             <span className="text-xl font-bold tracking-tight text-white">Dashboard</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               to={link.path}
+              onClick={() => setMobileMenuOpen(false)}
               className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                 location.pathname === link.path 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' 
@@ -307,7 +352,7 @@ export default function EducationManager() {
         </nav>
 
         <div className="p-4 mt-auto border-t border-slate-800 space-y-1">
-          <a href="/" target="_blank" className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+          <a href="/" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
             <ExternalLink className="w-5 h-5" />
             <span className="font-medium">View Live Site</span>
           </a>
@@ -319,40 +364,55 @@ export default function EducationManager() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-        <header className="h-20 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 sticky top-0 z-40">
-          <div className="flex items-center gap-4">
-            <Link to="/admin/dashboard" className="p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h2 className="text-xl font-semibold text-white">Education & Certifications Manager</h2>
-          </div>
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen min-w-0">
+        <header className="min-h-20 py-3 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsHistoryOpen(true)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl"
+              aria-label="Open navigation menu"
             >
-              <History className="w-4 h-4 text-teal-400" /> History ({activeTab === 'education' ? 'Education' : 'Certifications'})
+              <Menu className="w-5 h-5" />
+            </button>
+            <Link to="/admin/dashboard" className="hidden sm:inline-flex p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <h2 className="text-base sm:text-xl font-semibold text-white truncate">Education & Certifications</h2>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(true)}
+              className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
+            >
+              <History className="w-4 h-4 text-teal-400" />
+              <span className="hidden sm:inline">History ({activeTab === 'education' ? 'Education' : 'Certifications'})</span>
+              <span className="sm:hidden">History</span>
             </button>
             {activeTab === 'education' ? (
               <button
+                type="button"
                 onClick={() => seedDefaults('education')}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors"
+                className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors"
               >
-                <RotateCcw className="w-4 h-4" /> Seed from Defaults
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Seed from Defaults</span>
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => seedDefaults('certifications')}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors"
+                className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors"
               >
-                <RotateCcw className="w-4 h-4" /> Seed from Defaults
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Seed from Defaults</span>
               </button>
             )}
           </div>
         </header>
 
-        <main className="p-8 max-w-5xl mx-auto w-full space-y-6">
+        <main className="p-4 sm:p-8 max-w-5xl mx-auto w-full space-y-6">
           {/* Tabs */}
           <div className="flex border-b border-slate-800">
             <button
@@ -396,13 +456,7 @@ export default function EducationManager() {
                         key={item.id}
                         item={item}
                         onEdit={(e) => { setEditingEdu(e); setIsEduModalOpen(true); }}
-                        onDelete={(id) => {
-                          if (confirm('Are you sure you want to delete this item?')) {
-                            const newList = educationList.filter(i => i.id !== id);
-                            setEducationList(newList);
-                            handleSaveEducation(newList);
-                          }
-                        }}
+                        onDelete={(id) => setDeleteEduId(id)}
                         onToggleVisible={(id) => {
                           const newList = educationList.map(i => i.id === id ? { ...i, visible: i.visible === false ? true : false } : i);
                           setEducationList(newList);
@@ -447,13 +501,7 @@ export default function EducationManager() {
                         key={item.id}
                         item={item}
                         onEdit={(c) => { setEditingCert(c); setIsCertModalOpen(true); }}
-                        onDelete={(id) => {
-                          if (confirm('Are you sure you want to delete this certification?')) {
-                            const newList = certificationsList.filter(i => i.id !== id);
-                            setCertificationsList(newList);
-                            handleSaveCertifications(newList);
-                          }
-                        }}
+                        onDelete={(id) => setDeleteCertId(id)}
                         onToggleVisible={(id) => {
                           const newList = certificationsList.map(i => i.id === id ? { ...i, visible: i.visible === false ? true : false } : i);
                           setCertificationsList(newList);
@@ -485,12 +533,12 @@ export default function EducationManager() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                // Check duplicate title
-                const duplicate = educationList.some(item => item.id !== editingEdu.id && item.degree.toLowerCase() === editingEdu.degree.toLowerCase());
+                const duplicate = educationList.some(
+                  item => item.id !== editingEdu.id && item.degree.toLowerCase() === editingEdu.degree.trim().toLowerCase()
+                );
                 if (duplicate) {
-                  if (!confirm(`Warning: An education entry with the degree "${editingEdu.degree}" already exists. Proceed?`)) {
-                    return;
-                  }
+                  setPendingDuplicateEdu(editingEdu);
+                  return;
                 }
 
                 const exists = educationList.some(item => item.id === editingEdu.id);
@@ -579,17 +627,16 @@ export default function EducationManager() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                // Check duplicate title
-                const duplicate = certificationsList.some(item => item.id !== editingCert.id && item.title.toLowerCase() === editingCert.title.toLowerCase());
-                if (duplicate) {
-                  if (!confirm(`Warning: A certification with the title "${editingCert.title}" already exists. Proceed?`)) {
-                    return;
-                  }
+                if (!isValidUrlInput(editingCert.verifyUrl)) {
+                  toast.error('Verification URL must start with https://');
+                  return;
                 }
 
-                // Validate URL (https:// or mailto:, never javascript:)
-                if (editingCert.verifyUrl.toLowerCase().startsWith('javascript:')) {
-                  toast.error('JavaScript URLs are not allowed');
+                const duplicate = certificationsList.some(
+                  item => item.id !== editingCert.id && item.title.toLowerCase() === editingCert.title.trim().toLowerCase()
+                );
+                if (duplicate) {
+                  setPendingDuplicateCert(editingCert);
                   return;
                 }
 
@@ -704,6 +751,80 @@ export default function EducationManager() {
             setCertificationsList(restoredData.items);
           }
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteEduId)}
+        title="Delete Education Entry"
+        message="Are you sure you want to delete this education entry?"
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deleteEduId) {
+            const newList = educationList.filter(i => i.id !== deleteEduId);
+            setEducationList(newList);
+            handleSaveEducation(newList);
+          }
+          setDeleteEduId(null);
+        }}
+        onCancel={() => setDeleteEduId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteCertId)}
+        title="Delete Certification"
+        message="Are you sure you want to delete this certification?"
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deleteCertId) {
+            const newList = certificationsList.filter(i => i.id !== deleteCertId);
+            setCertificationsList(newList);
+            handleSaveCertifications(newList);
+          }
+          setDeleteCertId(null);
+        }}
+        onCancel={() => setDeleteCertId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(pendingDuplicateEdu)}
+        title="Duplicate Degree Warning"
+        message={`An education entry with the degree "${pendingDuplicateEdu?.degree || ''}" already exists. Save anyway?`}
+        confirmLabel="Save Anyway"
+        onConfirm={() => {
+          if (pendingDuplicateEdu) {
+            const exists = educationList.some(item => item.id === pendingDuplicateEdu.id);
+            const newList = exists
+              ? educationList.map(item => item.id === pendingDuplicateEdu.id ? pendingDuplicateEdu : item)
+              : [...educationList, pendingDuplicateEdu];
+            setEducationList(newList);
+            handleSaveEducation(newList);
+            setIsEduModalOpen(false);
+          }
+          setPendingDuplicateEdu(null);
+        }}
+        onCancel={() => setPendingDuplicateEdu(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(pendingDuplicateCert)}
+        title="Duplicate Certification Warning"
+        message={`A certification with the title "${pendingDuplicateCert?.title || ''}" already exists. Save anyway?`}
+        confirmLabel="Save Anyway"
+        onConfirm={() => {
+          if (pendingDuplicateCert) {
+            const exists = certificationsList.some(item => item.id === pendingDuplicateCert.id);
+            const newList = exists
+              ? certificationsList.map(item => item.id === pendingDuplicateCert.id ? pendingDuplicateCert : item)
+              : [...certificationsList, pendingDuplicateCert];
+            setCertificationsList(newList);
+            handleSaveCertifications(newList);
+            setIsCertModalOpen(false);
+          }
+          setPendingDuplicateCert(null);
+        }}
+        onCancel={() => setPendingDuplicateCert(null)}
       />
     </div>
   );

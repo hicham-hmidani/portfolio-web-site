@@ -4,6 +4,7 @@ import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { gsap, ScrollTrigger, SplitText, useGSAP } from '../lib/gsap';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
+import { safeHref } from '../lib/url';
 
 interface Project {
   id: string;
@@ -80,7 +81,7 @@ export default function Projects({ folio = '04' }: { folio?: string } = {}) {
       setProjects(featured.length > 0 ? featured : sortedProjects);
       setLoading(false);
     }, (error) => {
-      console.error("Firestore error in Projects component:", error);
+      console.warn("Notice: Firestore subscription in Projects component:", error);
       setLoading(false);
     });
 
@@ -367,18 +368,18 @@ export default function Projects({ folio = '04' }: { folio?: string } = {}) {
                   className="project-card relative overflow-hidden bg-[#FFFFFF] border border-[rgba(10,10,10,0.16)] hover:border-[#0A0A0A]/40 transition-colors flex flex-col h-full"
                 >
                   {/* Image Preview Frame with clip-path wipe & scrubbed parallax */}
-                  {project.imageUrl && (
+                  {safeHref(project.imageUrl) && (
                     <div className="project-image-frame relative h-56 sm:h-64 overflow-hidden border-b border-[rgba(10,10,10,0.16)] bg-[#F7F7F8] will-change-transform">
                       <img
-                        src={project.imageUrl}
-                        alt={project.title}
+                        src={safeHref(project.imageUrl)}
+                        alt={project.title || 'Project preview'}
                         className="project-parallax-img absolute inset-0 w-full h-[120%] -top-[10%] object-cover grayscale contrast-105 will-change-transform"
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute top-3 left-3 z-10">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#FFFFFF]/90 backdrop-blur-sm border border-[rgba(10,10,10,0.16)] text-[10px] font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">
                           <span className="w-1.5 h-1.5 bg-[#FF4F00]" />
-                          {project.platform}
+                          {project.platform || 'Project'}
                         </span>
                       </div>
                     </div>
@@ -388,7 +389,7 @@ export default function Projects({ folio = '04' }: { folio?: string } = {}) {
                     {/* Header Row: Platform Icon, Title with sliding arrow, and Action Links */}
                     <div className="flex justify-between items-start gap-4 mb-4">
                       <div className="flex items-start gap-3 flex-1">
-                        {!project.imageUrl && (
+                        {!safeHref(project.imageUrl) && (
                           <div className="w-8 h-8 border border-[rgba(10,10,10,0.16)] bg-[#F7F7F8] flex items-center justify-center shrink-0 mt-0.5">
                             {getPlatformIcon(project.platform)}
                           </div>
@@ -400,18 +401,18 @@ export default function Projects({ folio = '04' }: { folio?: string } = {}) {
                             </h3>
                             <ArrowUpRight className="project-hover-arrow w-4 h-4 text-[#FF4F00] shrink-0 opacity-0 -translate-x-1.5 will-change-transform" />
                           </div>
-                          {!project.imageUrl && (
+                          {!safeHref(project.imageUrl) && (
                             <p className="text-[10px] font-mono font-bold text-[#0A0A0A]/50 mt-1 uppercase tracking-widest">
-                              {project.platform}
+                              {project.platform || 'Project'}
                             </p>
                           )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {project.githubUrl && (
+                        {safeHref(project.githubUrl) && (
                           <a
-                            href={project.githubUrl}
+                            href={safeHref(project.githubUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="p-2 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] hover:text-[#FF4F00] hover:border-[#FF4F00] transition-colors"
@@ -420,9 +421,9 @@ export default function Projects({ folio = '04' }: { folio?: string } = {}) {
                             <Github className="w-4 h-4" />
                           </a>
                         )}
-                        {project.demoUrl && (
+                        {safeHref(project.demoUrl) && (
                           <a
-                            href={project.demoUrl}
+                            href={safeHref(project.demoUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="p-2 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] hover:text-[#FF4F00] hover:border-[#FF4F00] transition-colors"

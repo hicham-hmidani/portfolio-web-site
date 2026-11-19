@@ -4,6 +4,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { gsap, ScrollTrigger, Flip, useGSAP } from '../lib/gsap';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
+import { safeHref } from '../lib/url';
 
 interface Prompt {
   id: string;
@@ -50,6 +51,8 @@ export default function PromptEngineering({ folio = '05' }: { folio?: string } =
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setFeaturedPrompts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })) as Prompt[]);
+    }, (err) => {
+      console.warn('Could not sync marketplace_items:', err);
     });
     return () => unsubscribe();
   }, []);
@@ -282,7 +285,7 @@ export default function PromptEngineering({ folio = '05' }: { folio?: string } =
                   </div>
 
                   <a
-                    href={prompt.url}
+                    href={safeHref(prompt.url) || 'https://promptbase.com/profile/camih8'}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] font-mono font-bold text-xs uppercase tracking-wider transition-colors"

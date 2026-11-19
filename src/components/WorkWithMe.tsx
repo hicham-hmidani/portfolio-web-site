@@ -6,6 +6,7 @@ import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap';
 import { useSectionDoc } from '../hooks/useSectionDoc';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
 import { workWithMeDefaults, WorkWithMeData, WorkWithMeCard } from '../content/workWithMeDefaults';
+import { safeHref } from '../lib/url';
 
 export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
   const rootRef = useRef<HTMLElement>(null);
@@ -189,22 +190,24 @@ export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
   };
 
   const getBulletIcon = (bulletText: string) => {
-    if (bulletText.includes('{rate}') || bulletText.includes('/hr') || bulletText.includes('$')) {
+    const safeText = typeof bulletText === 'string' ? bulletText : '';
+    if (safeText.includes('{rate}') || safeText.includes('/hr') || safeText.includes('$')) {
       return <DollarSign className="w-3.5 h-3.5 text-[#FF4F00]" />;
     }
-    if (bulletText.toLowerCase().includes('rank')) {
+    if (safeText.toLowerCase().includes('rank')) {
       return <TrendingUp className="w-3.5 h-3.5 text-[#FF4F00]" />;
     }
-    if (bulletText.toLowerCase().includes('prompts')) {
+    if (safeText.toLowerCase().includes('prompts')) {
       return <Layers className="w-3.5 h-3.5 text-[#FF4F00]" />;
     }
-    if (bulletText.includes('@')) {
+    if (safeText.includes('@')) {
       return <Mail className="w-3.5 h-3.5 text-[#FF4F00]" />;
     }
     return <Clock className="w-3.5 h-3.5 text-[#FF4F00]" />;
   };
 
   const formatBulletText = (text: string) => {
+    if (typeof text !== 'string') return '';
     return text.replace(/{rate}/g, hourlyRate);
   };
 
@@ -246,7 +249,8 @@ export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
           visibleCards.length === 1 ? 'lg:grid-cols-1' : visibleCards.length === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-3'
         }`}>
           {visibleCards.map((card: WorkWithMeCard, idx: number) => {
-            const isEmail = card.ctaUrl.startsWith('mailto:');
+            const validHref = safeHref(card.ctaUrl, { allowMailto: true });
+            const isEmail = Boolean(validHref?.toLowerCase().startsWith('mailto:'));
             return (
               <div
                 key={card.id || idx}
@@ -271,14 +275,15 @@ export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
                     {card.blurb}
                   </p>
 
-                  {card.bullets && card.bullets.length > 0 && (
+                  {Array.isArray(card.bullets) && card.bullets.length > 0 && (
                     <div className="col-content space-y-3 mb-8 pt-6 border-t border-[rgba(10,10,10,0.12)]">
                       {card.bullets.map((bullet, bIdx) => {
-                        const formatted = formatBulletText(bullet);
-                        const hasRate = bullet.includes('{rate}') || formatted.includes(hourlyRate);
+                        const safeBullet = typeof bullet === 'string' ? bullet : '';
+                        const formatted = formatBulletText(safeBullet);
+                        const hasRate = safeBullet.includes('{rate}') || formatted.includes(hourlyRate);
                         return (
                           <div key={bIdx} className="flex items-center gap-2.5 text-xs font-mono text-[#0A0A0A]/80">
-                            {getBulletIcon(bullet)}
+                            {getBulletIcon(safeBullet)}
                             <span className={hasRate ? "font-bold text-[#0A0A0A]" : ""}>
                               {formatted}
                             </span>
@@ -288,7 +293,7 @@ export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
                     </div>
                   )}
 
-                  {card.tags && card.tags.length > 0 && (
+                  {Array.isArray(card.tags) && card.tags.length > 0 && (
                     <div className="mb-8">
                       <div className="col-content text-[10px] font-mono text-[#0A0A0A]/40 uppercase tracking-widest mb-3">
                         Core Specialties
@@ -308,20 +313,26 @@ export default function WorkWithMe({ folio = '09' }: { folio?: string } = {}) {
                 </div>
 
                 <div className="pt-6">
-                  <a
-                    ref={(el) => { buttonRefs.current[idx] = el; }}
-                    href={card.ctaUrl}
-                    target={isEmail ? undefined : "_blank"}
-                    rel={isEmail ? undefined : "noreferrer"}
-                    className={`magnetic-btn w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 ${
-                      isEmail
-                        ? "bg-[#FF4F00] hover:bg-[#E04500] text-white"
-                        : "bg-[#0A0A0A] hover:bg-[#FF4F00] text-white"
-                    } font-mono text-xs uppercase tracking-wider font-semibold transition-colors duration-150 will-change-transform`}
-                  >
-                    <span>{card.ctaLabel}</span>
-                    {isEmail ? <Send className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                  </a>
+                  {validHref ? (
+                    <a
+                      ref={(el) => { buttonRefs.current[idx] = el; }}
+                      href={validHref}
+                      target={isEmail ? undefined : "_blank"}
+                      rel={isEmail ? undefined : "noreferrer"}
+                      className={`magnetic-btn w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 ${
+                        isEmail
+                          ? "bg-[#FF4F00] hover:bg-[#E04500] text-white"
+                          : "bg-[#0A0A0A] hover:bg-[#FF4F00] text-white"
+                      } font-mono text-xs uppercase tracking-wider font-semibold transition-colors duration-150 will-change-transform`}
+                    >
+                      <span>{card.ctaLabel || 'Learn More'}</span>
+                      {isEmail ? <Send className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                    </a>
+                  ) : (
+                    <span className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#F7F7F8] text-[#0A0A0A]/40 border border-[rgba(10,10,10,0.16)] font-mono text-xs uppercase tracking-wider font-semibold">
+                      {card.ctaLabel || 'Link Unavailable'}
+                    </span>
+                  )}
                 </div>
               </div>
             );

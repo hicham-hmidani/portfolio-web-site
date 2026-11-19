@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, ArrowRight, ArrowLeft, Share2, Linkedin, Twitter, RefreshCw, Loader2, X, Sparkles } from 'lucide-react';
+import { Clock, ArrowRight, ArrowLeft, Share2, Linkedin, Twitter, RefreshCw, Loader2, X, Sparkles, AlertCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { GoogleGenAI, Type } from "@google/genai";
+import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase-config';
 import { gsap, ScrollTrigger, Flip, useGSAP } from '../lib/gsap';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
 
 type BlogPost = {
+  id?: string;
   title: string;
   excerpt: string;
   category: string;
@@ -18,39 +21,6 @@ type BlogPost = {
   content?: string;
 };
 
-const initialPosts: BlogPost[] = [
-  {
-    title: "How I Built a Road Accident Dashboard That Analyzed 417,883 Casualties in Excel",
-    excerpt: "A step-by-step breakdown of how I transformed raw accident data into an interactive Excel dashboard with KPIs, trend lines, and filter panels.",
-    category: "Data Analysis & Visualization",
-    categoryColor: "text-blue-700 bg-blue-50 border-blue-200",
-    readTime: "6 min read",
-    author: "Hicham Hmidani",
-    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
-    date: "Oct 12, 2023"
-  },
-  {
-    title: "How I Reached PromptBase Rank #1899 with 220+ AI Prompts: My Strategy",
-    excerpt: "From my first Leonardo.AI prompt to building a full catalog of 220+ prompts — here's what I learned about engineering prompts that actually sell.",
-    category: "AI & Prompt Engineering",
-    categoryColor: "text-yellow-700 bg-yellow-50 border-yellow-200",
-    readTime: "8 min read",
-    author: "Hicham Hmidani",
-    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
-    date: "Nov 05, 2023"
-  },
-  {
-    title: "Domain Name Investing in 2025: What I Wish I Knew Before I Started",
-    excerpt: "Domain flipping is one of the most underrated income streams in tech. Here's my beginner's guide to finding, buying, and selling valuable domains.",
-    category: "Domain Name Investing",
-    categoryColor: "text-orange-700 bg-orange-50 border-orange-200",
-    readTime: "7 min read",
-    author: "Hicham Hmidani",
-    avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
-    date: "Dec 18, 2023"
-  }
-];
-
 const CATEGORIES = [
   "Data Analysis & Visualization",
   "AI & Prompt Engineering",
@@ -61,11 +31,98 @@ const CATEGORIES = [
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Data Analysis & Visualization": "text-blue-700 bg-blue-50 border-blue-200",
+  "Data Analysis": "text-blue-700 bg-blue-50 border-blue-200",
   "AI & Prompt Engineering": "text-yellow-700 bg-yellow-50 border-yellow-200",
+  "AI & Prompts": "text-yellow-700 bg-yellow-50 border-yellow-200",
   "Machine Learning & Deep Learning": "text-purple-700 bg-purple-50 border-purple-200",
+  "Machine Learning": "text-purple-700 bg-purple-50 border-purple-200",
   "Freelancing Tips & Career": "text-green-700 bg-green-50 border-green-200",
-  "Domain Name Investing": "text-orange-700 bg-orange-50 border-orange-200"
+  "Freelancing": "text-green-700 bg-green-50 border-green-200",
+  "Domain Name Investing": "text-orange-700 bg-orange-50 border-orange-200",
+  "Domain Investing": "text-orange-700 bg-orange-50 border-orange-200"
 };
+
+const DEFAULT_AVATAR = "https://avatars.githubusercontent.com/u/112251991?v=4";
+
+const initialPosts: BlogPost[] = [
+  {
+    id: 'default-road-accident',
+    title: "How I Built a Road Accident Dashboard That Analyzed 417,883 Casualties in Excel",
+    excerpt: "A step-by-step breakdown of how I transformed raw accident data into an interactive Excel dashboard with KPIs, trend lines, and filter panels.",
+    category: "Data Analysis & Visualization",
+    categoryColor: "text-blue-700 bg-blue-50 border-blue-200",
+    readTime: "6 min read",
+    author: "Hicham Hmidani",
+    avatar: DEFAULT_AVATAR,
+    date: "Oct 12, 2023",
+    content: `## Turning Raw Safety Records Into Executive Decisions
+
+When working with large operational spreadsheets exceeding **417,000 casualty rows**, performance and clarity come down to data hygiene first, visual restraint second, and intuitive slicing last.
+
+### 1. Cleaning & Normalizing the Dataset
+Before inserting a single PivotTable, I standardized inconsistent categorical labels across vehicle classes, road surface conditions, and daylight bands:
+- Unified duplicate vehicle codes into clean groups (Cars, Motorcycles, Heavy Goods, Other).
+- Derived a clean \`Year\` and \`Month\` helper dimension so **Current Year (CY)** vs **Previous Year (PY)** comparisons recalculate instantaneously.
+- Verified row counts against summary totals to ensure zero dropped casualties (**417,883 total records**).
+
+### 2. Architecting the KPI & Comparison Layer
+Decision-makers rarely want to hunt through 12 separate tabs. I placed four primary KPI blocks along the top fold—**Total Casualties**, **Fatal (1.7%)**, **Serious (14.2%)**, and **Slight (84.1%)**—all driven by normalized Pivot caches linked through a shared Slicer network.
+
+### 3. Designing for Speed with Slicers & Filter Panels
+By connecting timeline filters directly to Pivot charts rather than volatile cell arrays, users can slice by urban vs. rural areas, lighting conditions, or road surface (wet/dry/snow) in under a second. The headline insight stood out immediately: cars accounted for **79.8% of casualties**, while single-carriageway roads remained the highest-risk corridor.`
+  },
+  {
+    id: 'default-promptbase-strategy',
+    title: "How I Reached PromptBase Rank #1899 with 220+ AI Prompts: My Strategy",
+    excerpt: "From my first Leonardo.AI prompt to building a full catalog of 220+ prompts — here's what I learned about engineering prompts that actually sell.",
+    category: "AI & Prompt Engineering",
+    categoryColor: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    readTime: "8 min read",
+    author: "Hicham Hmidani",
+    avatar: DEFAULT_AVATAR,
+    date: "Nov 05, 2023",
+    content: `## Treating Prompt Engineering Like Software Product Design
+
+Scaling a catalog past **220 published prompts** and climbing into the top global marketplace tier (**Rank #1899**) required shifting away from one-off creative experiments toward repeatable, parameterized templates.
+
+### 1. Modular Variable Architecture
+Buyers on PromptBase don't want magic words—they want **predictable output every time they swap a variable**. Every prompt in my catalog separates:
+- **Core Style & Camera Lock**: Lighting physics, framing ratio, color gamut.
+- **Subject Slot**: Clear \`[SUBJECT]\` or \`[PRODUCT]\` variables tested across 15+ distinct inputs.
+- **Negative Guardrails**: Explicit exclusions for anatomy glitches, typography artifacts, and muddied backgrounds.
+
+### 2. Picking High-Intent Commercial Niches
+Instead of competing in saturated fantasy art feeds, I focused on repeatable business assets: customizable coloring books, KDP planner interiors, cinematic poster frames, and print-ready vector stickers.
+
+### 3. Documentation & Consistency Proof
+Every listing includes multi-seed validation outputs so buyers see reliable consistency across vastly different topics—driving organic repeat purchases and over 1,500 organic storefront views.`
+  },
+  {
+    id: 'default-domain-investing',
+    title: "Domain Name Investing in 2025: What I Wish I Knew Before I Started",
+    excerpt: "Domain flipping is one of the most underrated income streams in tech. Here's my beginner's guide to finding, buying, and selling valuable domains.",
+    category: "Domain Name Investing",
+    categoryColor: "text-orange-700 bg-orange-50 border-orange-200",
+    readTime: "7 min read",
+    author: "Hicham Hmidani",
+    avatar: DEFAULT_AVATAR,
+    date: "Dec 18, 2023",
+    content: `## Evaluating Digital Real Estate With Data Discipline
+
+Just like data pipelines, domain investing rewards analytical restraint over impulse hand-registrations. Here are the core filters I rely on before acquiring any domain name.
+
+### 1. Commercial Buyer Depth Over Clever Puns
+Ask a simple question before buying: *Are there at least 20 funded businesses operating in this exact keyword vertical right now?* Two-word exact \`.com\` domains with clear commercial intent consistently outperform invented abstract spellings unless backed by strong brandability metrics.
+
+### 2. Evaluating Extension Strength & Search Volume
+- Prioritize category-defining \`.com\` or clearly aligned \`.ai\` names tied to active software budgets.
+- Check historical sales comparables rather than relying solely on automated appraisal scores.
+- Watch renewal overhead closely: prune dead inventory ruthlessly each year rather than hoarding marginal names.
+
+### 3. Clean Outbound & Lander Mechanics
+Make purchasing frictionless with clean "Buy Now" pricing or clear Make-Offer landers backed by trusted escrow infrastructure.`
+  }
+];
 
 const FILTERS = ["All", "Data Analysis", "AI & Prompts", "Machine Learning", "Freelancing", "Domain Investing"];
 
@@ -84,6 +141,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
   const [newCategory, setNewCategory] = useState(CATEGORIES[0]);
   const [newTopic, setNewTopic] = useState("");
   const [isGeneratingNew, setIsGeneratingNew] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   // GSAP Refs
   const sectionRef = useRef<HTMLElement>(null);
@@ -94,6 +152,58 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
   const viewAllFlipRef = useRef<any>(null);
 
   useScrollRefresh([posts]);
+
+  // Sync published blog posts from Firestore
+  useEffect(() => {
+    const q = query(collection(db, "blog_posts"), where("published", "==", true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        setPosts(initialPosts);
+        return;
+      }
+
+      const firestorePosts: BlogPost[] = snapshot.docs
+        .map((docSnap) => {
+          const d = docSnap.data();
+          const createdTs = d.createdAt instanceof Timestamp
+            ? d.createdAt.toDate()
+            : d.updatedAt instanceof Timestamp
+              ? d.updatedAt.toDate()
+              : null;
+
+          const formattedDate = d.date || (createdTs
+            ? createdTs.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Recent');
+
+          const category = typeof d.category === 'string' && d.category.trim()
+            ? d.category
+            : 'Data Analysis';
+
+          return {
+            id: docSnap.id,
+            title: d.title || 'Untitled Article',
+            excerpt: d.excerpt || '',
+            category,
+            categoryColor: CATEGORY_COLORS[category] || "text-slate-700 bg-slate-50 border-slate-200",
+            readTime: d.readTime || '5 min read',
+            author: d.author || 'Hicham Hmidani',
+            avatar: d.avatar || DEFAULT_AVATAR,
+            date: formattedDate,
+            content: d.content || '',
+            _sortTime: createdTs ? createdTs.getTime() : 0
+          };
+        })
+        .sort((a, b) => b._sortTime - a._sortTime)
+        .map(({ _sortTime, ...post }) => post);
+
+      setPosts(firestorePosts);
+    }, (err) => {
+      console.warn("Could not sync blog_posts, using defaults:", err);
+      setPosts(initialPosts);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Keep body overflow locked when any modal is open
   useEffect(() => {
@@ -236,13 +346,24 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
     setActiveFilter(filter);
   });
 
+  const getGeminiApiKey = () => {
+    const key = typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : '';
+    return typeof key === 'string' ? key.trim() : '';
+  };
+
   // Generate content for an existing post
   const generateArticle = async (post: BlogPost) => {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      setArticleContent(post.content || `## ${post.title}\n\n${post.excerpt || 'Article content preview unavailable without an API key configured.'}`);
+      return;
+    }
+
     setIsGenerating(true);
     setArticleContent("");
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are Hicham Hmidani, a Junior Data Analyst, AI Prompt Engineer, and Domain Name Investor from Morocco. Write a detailed, insightful blog article titled "${post.title}" in the category "${post.category}". 
       Structure it with: introduction, 3-4 main sections with subheadings, practical tips, and a conclusion. 
       Write in a professional but approachable tone. Use real examples from data analytics, AI tools, or freelancing. 
@@ -259,7 +380,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
       setPosts(prev => prev.map(p => p.title === post.title ? { ...p, content: text } : p));
     } catch (error) {
       console.error("Error generating article:", error);
-      setArticleContent("Sorry, there was an error generating the article. Please try again.");
+      setArticleContent(post.content || "Sorry, there was an error generating the article. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -268,10 +389,18 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
   // Generate a completely new post
   const handleGenerateNewPost = async (e: React.FormEvent) => {
     e.preventDefault();
+    setGenerateError("");
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      setGenerateError("AI article generation is unavailable because GEMINI_API_KEY is not configured.");
+      return;
+    }
+
     setIsGeneratingNew(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are Hicham Hmidani, a Junior Data Analyst, AI Prompt Engineer, and Domain Name Investor from Morocco. 
       Write a detailed, insightful blog article in the category "${newCategory}". 
       ${newTopic ? `The specific topic the user requested is: "${newTopic}".` : `Choose a highly engaging and relevant topic for this category.`}
@@ -300,6 +429,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
       const data = JSON.parse(response.text || "{}");
 
       const newPost: BlogPost = {
+        id: `ai-${Date.now()}`,
         title: data.title || newTopic || "New AI Generated Article",
         excerpt: data.excerpt || "An insightful article generated by AI.",
         content: data.content || "# Error\nFailed to generate content.",
@@ -307,7 +437,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
         categoryColor: CATEGORY_COLORS[newCategory] || "text-slate-700 bg-slate-50 border-slate-200",
         readTime: data.readTime || "5 min read",
         author: "Hicham Hmidani",
-        avatar: "https://avatars.githubusercontent.com/u/112251991?v=4",
+        avatar: DEFAULT_AVATAR,
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       };
 
@@ -319,7 +449,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
       setArticleContent(newPost.content!);
     } catch (error) {
       console.error("Error generating new post:", error);
-      alert("Failed to generate article. Please try again.");
+      setGenerateError("Failed to generate article. Please try again.");
     } finally {
       setIsGeneratingNew(false);
     }
@@ -327,7 +457,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
 
   const handleReadArticle = (post: BlogPost) => {
     setSelectedPost(post);
-    if (post.content) {
+    if (post.content && post.content.trim()) {
       setArticleContent(post.content);
     } else {
       generateArticle(post);
@@ -341,12 +471,13 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
   };
 
   const filteredPosts = posts.filter(post => {
+    const category = post.category || "";
     if (activeFilter === "All") return true;
-    if (activeFilter === "Data Analysis") return post.category.includes("Data Analysis");
-    if (activeFilter === "AI & Prompts") return post.category.includes("AI");
-    if (activeFilter === "Machine Learning") return post.category.includes("Machine Learning");
-    if (activeFilter === "Freelancing") return post.category.includes("Freelancing");
-    if (activeFilter === "Domain Investing") return post.category.includes("Domain");
+    if (activeFilter === "Data Analysis") return category.includes("Data Analysis");
+    if (activeFilter === "AI & Prompts") return category.includes("AI");
+    if (activeFilter === "Machine Learning") return category.includes("Machine Learning");
+    if (activeFilter === "Freelancing") return category.includes("Freelancing");
+    if (activeFilter === "Domain Investing") return category.includes("Domain");
     return true;
   });
 
@@ -397,7 +528,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {posts.slice(0, 3).map((post) => (
             <div
-              key={post.title}
+              key={post.id || post.title}
               onMouseEnter={handleCardMouseEnter}
               onMouseLeave={handleCardMouseLeave}
               onClick={() => handleReadArticle(post)}
@@ -522,7 +653,7 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl">
                   {filteredPosts.map((post) => (
                     <div
-                      key={post.title}
+                      key={post.id || post.title}
                       onClick={() => handleReadArticle(post)}
                       className="view-all-card flex flex-col bg-[#FFFFFF] border border-[rgba(10,10,10,0.16)] p-6 hover:border-[#0A0A0A]/40 transition-colors cursor-pointer justify-between"
                     >
@@ -582,7 +713,12 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
                   Generate New Article with Gemini
                 </h3>
                 <button
-                  onClick={() => !isGeneratingNew && setIsGenerateModalOpen(false)}
+                  onClick={() => {
+                    if (!isGeneratingNew) {
+                      setIsGenerateModalOpen(false);
+                      setGenerateError("");
+                    }
+                  }}
                   className="p-1 text-[#0A0A0A]/40 hover:text-[#0A0A0A] transition-colors cursor-pointer"
                   disabled={isGeneratingNew}
                 >
@@ -592,6 +728,13 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
 
               <form onSubmit={handleGenerateNewPost} className="p-6 sm:p-8">
                 <div className="space-y-6">
+                  {generateError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-mono flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{generateError}</span>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] mb-2">
                       Topic Category
@@ -761,13 +904,15 @@ export default function Blog({ folio = '07' }: { folio?: string } = {}) {
                             <p className="text-xs font-mono text-[#0A0A0A]/60">Junior Data Analyst & AI Prompt Engineer</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => generateArticle(selectedPost)}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] font-mono text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>Generate Alternate Version</span>
-                        </button>
+                        {Boolean(getGeminiApiKey()) && (
+                          <button
+                            onClick={() => generateArticle(selectedPost)}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7F7F8] hover:bg-[#FF4F00] hover:text-white border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] font-mono text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Generate Alternate Version</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

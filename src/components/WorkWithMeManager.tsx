@@ -28,13 +28,14 @@ import {
   Sparkles,
   ToggleLeft,
   ToggleRight,
-  CheckCircle2,
-  AlertCircle,
-  History
+  History,
+  Menu
 } from 'lucide-react';
 import { saveSection } from '../admin/saveSection';
 import HistoryDrawer from '../admin/ui/HistoryDrawer';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import ConfirmDialog from '../admin/ui/ConfirmDialog';
+import { isValidUrlInput } from '../lib/url';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   DndContext, 
   closestCenter, 
@@ -125,6 +126,9 @@ export default function WorkWithMeManager() {
   });
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [confirmSeedOpen, setConfirmSeedOpen] = useState(false);
+  const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
 
   // Modal editing card state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -165,6 +169,8 @@ export default function WorkWithMeManager() {
       } else {
         setData(workWithMeDefaults);
       }
+    }, (err) => {
+      console.warn('Error listening to workwithme doc:', err);
     });
 
     // 2. Listen to portfolio_content/hero for availability
@@ -176,6 +182,8 @@ export default function WorkWithMeManager() {
           statusText: h.availableStatusText || (h.available ? 'AVAILABLE FOR FREELANCE' : 'CURRENTLY UNAVAILABLE')
         });
       }
+    }, (err) => {
+      console.warn('Error listening to hero doc:', err);
     });
 
     return () => {
@@ -215,10 +223,9 @@ export default function WorkWithMeManager() {
     }
   };
 
-  const seedDefaults = async () => {
-    if (confirm('Reset Work With Me section to in-code defaults?')) {
-      await handleSaveData(workWithMeDefaults);
-    }
+  const confirmSeedDefaults = async () => {
+    setConfirmSeedOpen(false);
+    await handleSaveData(workWithMeDefaults);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -262,22 +269,42 @@ export default function WorkWithMeManager() {
     <div className="min-h-screen bg-[#0a0f1e] text-white flex">
       <Toaster position="top-right" />
 
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50">
-        <div className="p-6">
+      <aside
+        className={`w-64 fixed inset-y-0 left-0 bg-[#111827] border-r border-slate-800 flex flex-col z-50 transition-transform duration-200 lg:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 flex items-center justify-between">
           <Link to="/admin/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-yellow-500 flex items-center justify-center text-white font-bold">
               HH
             </div>
             <span className="text-xl font-bold tracking-tight text-white">Dashboard</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               to={link.path}
+              onClick={() => setMobileMenuOpen(false)}
               className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                 location.pathname === link.path 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' 
@@ -293,7 +320,7 @@ export default function WorkWithMeManager() {
         </nav>
 
         <div className="p-4 mt-auto border-t border-slate-800 space-y-1">
-          <a href="/" target="_blank" className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+          <a href="/" target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
             <ExternalLink className="w-5 h-5" />
             <span className="font-medium">View Live Site</span>
           </a>
@@ -305,31 +332,42 @@ export default function WorkWithMeManager() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-        <header className="h-20 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 sticky top-0 z-40">
-          <div className="flex items-center gap-4">
-            <Link to="/admin/dashboard" className="p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h2 className="text-xl font-semibold text-white">Work With Me Manager</h2>
-          </div>
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen min-w-0">
+        <header className="min-h-20 py-3 bg-[#111827]/50 backdrop-blur-md border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <Link to="/admin/dashboard" className="hidden sm:inline-flex p-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <h2 className="text-base sm:text-xl font-semibold text-white truncate">Work With Me Manager</h2>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
               onClick={() => setIsHistoryOpen(true)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
+              className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
             >
               <History className="w-4 h-4 text-teal-400" /> History
             </button>
             <button
-              onClick={seedDefaults}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
+              type="button"
+              onClick={() => setConfirmSeedOpen(true)}
+              className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono flex items-center gap-2 transition-colors border border-slate-700"
             >
-              <RotateCcw className="w-4 h-4" /> Seed from Defaults
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Seed from Defaults</span>
             </button>
           </div>
         </header>
 
-        <main className="p-8 max-w-5xl mx-auto w-full space-y-8">
+        <main className="p-4 sm:p-8 max-w-5xl mx-auto w-full space-y-8">
           {/* Availability Control Box */}
           <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -470,14 +508,7 @@ export default function WorkWithMeManager() {
                         setTagInput('');
                         setIsModalOpen(true);
                       }}
-                      onDelete={(id) => {
-                        if (confirm('Delete this card?')) {
-                          const newCards = data.cards.filter(c => c.id !== id);
-                          const updated = { ...data, cards: newCards };
-                          setData(updated);
-                          handleSaveData(updated);
-                        }
-                      }}
+                      onDelete={(id) => setDeleteCardId(id)}
                       onToggleVisible={(id) => {
                         const newCards = data.cards.map(c => c.id === id ? { ...c, visible: c.visible === false ? true : false } : c);
                         const updated = { ...data, cards: newCards };
@@ -511,13 +542,8 @@ export default function WorkWithMeManager() {
                 e.preventDefault();
 
                 // Validate CTA URL (https:// or mailto: only, never javascript:)
-                const url = editingCard.ctaUrl.trim().toLowerCase();
-                if (!url.startsWith('https://') && !url.startsWith('mailto:')) {
+                if (!isValidUrlInput(editingCard.ctaUrl, { allowMailto: true })) {
                   toast.error('CTA URL must begin with https:// or mailto:');
-                  return;
-                }
-                if (url.startsWith('javascript:')) {
-                  toast.error('JavaScript URLs are prohibited');
                   return;
                 }
 
@@ -752,6 +778,33 @@ export default function WorkWithMeManager() {
         onRestored={(restoredData) => {
           if (restoredData) setData(restoredData);
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmSeedOpen}
+        title="Reset to Defaults?"
+        message="Reset the Work With Me section to in-code defaults? Current content will be backed up in History first."
+        confirmLabel="Seed Defaults"
+        onConfirm={confirmSeedDefaults}
+        onCancel={() => setConfirmSeedOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteCardId)}
+        title="Delete Engagement Card"
+        message="Are you sure you want to delete this engagement card?"
+        confirmLabel="Delete Card"
+        destructive
+        onConfirm={() => {
+          if (deleteCardId) {
+            const newCards = data.cards.filter(c => c.id !== deleteCardId);
+            const updated = { ...data, cards: newCards };
+            setData(updated);
+            handleSaveData(updated);
+          }
+          setDeleteCardId(null);
+        }}
+        onCancel={() => setDeleteCardId(null)}
       />
     </div>
   );

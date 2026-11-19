@@ -3,15 +3,18 @@ import { ExternalLink, Clock, DollarSign, Star } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { gsap, useGSAP } from '../lib/gsap';
+import { safeHref } from '../lib/url';
+
+const DEFAULT_SERVICE = {
+  title: "Custom Professional Excel Dashboard with Advanced Analytics",
+  description: "Need a powerful Excel dashboard? Get a fully custom, professional dashboard with advanced analytics tailored to your business data.",
+  price: "100",
+  deliveryTime: "3 Days",
+  url: "https://www.upwork.com/"
+};
 
 export default function FeaturedService({ folio = '06' }: { folio?: string } = {}) {
-  const [service, setService] = useState({
-    title: "Custom Professional Excel Dashboard with Advanced Analytics",
-    description: "Need a powerful Excel dashboard? Get a fully custom, professional dashboard with advanced analytics tailored to your business data.",
-    price: "100",
-    deliveryTime: "3 Days",
-    url: "https://www.upwork.com/"
-  });
+  const [service, setService] = useState(DEFAULT_SERVICE);
 
   const sectionRef = useRef<HTMLElement>(null);
   const headerHairlineRef = useRef<HTMLDivElement>(null);
@@ -24,13 +27,17 @@ export default function FeaturedService({ folio = '06' }: { folio?: string } = {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setService({
-          title: data.title || "",
-          description: data.description || "",
-          price: data.price || "",
-          deliveryTime: data.deliveryTime || "",
-          url: data.url || "https://www.upwork.com/"
+          title: typeof data.title === 'string' && data.title.trim() ? data.title : DEFAULT_SERVICE.title,
+          description: typeof data.description === 'string' && data.description.trim() ? data.description : DEFAULT_SERVICE.description,
+          price: typeof data.price === 'string' && data.price.trim() ? data.price : DEFAULT_SERVICE.price,
+          deliveryTime: typeof data.deliveryTime === 'string' && data.deliveryTime.trim() ? data.deliveryTime : DEFAULT_SERVICE.deliveryTime,
+          url: safeHref(data.url) || DEFAULT_SERVICE.url
         });
+      } else {
+        setService(DEFAULT_SERVICE);
       }
+    }, (err) => {
+      console.warn('Could not sync upwork_config:', err);
     });
     return () => unsubscribe();
   }, []);

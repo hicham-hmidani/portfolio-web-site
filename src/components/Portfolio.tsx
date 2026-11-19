@@ -17,6 +17,8 @@ import { useSectionDoc } from '../hooks/useSectionDoc';
 import { useScrollRefresh } from '../hooks/useScrollRefresh';
 import { defaultLayoutData, PortfolioLayoutData, SECTION_METAS } from '../content/layoutDefaults';
 
+import { safeHref } from '../lib/url';
+
 export default function Portfolio() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -29,6 +31,7 @@ export default function Portfolio() {
     available: boolean;
     availableStatusText?: string;
     rate: string;
+    image?: { url?: string; alt?: string; path?: string };
   }>({
     name: 'Hicham Hmidani',
     titles: ["Junior Data Analyst/Scientist", "AI Prompt Engineer", "Database Administrator-MI"],
@@ -71,10 +74,34 @@ export default function Portfolio() {
   // Firestore subscriptions
   useEffect(() => {
     const unsubHero = onSnapshot(doc(db, 'portfolio_content', 'hero'), (docSnap) => {
-      if (docSnap.exists()) setHero(prev => ({ ...prev, ...docSnap.data() }));
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Record<string, any>;
+        setHero(prev => ({
+          ...prev,
+          ...data,
+          name: typeof data.name === 'string' && data.name.trim() ? data.name : prev.name,
+          titles: Array.isArray(data.titles) && data.titles.length > 0 ? data.titles : prev.titles,
+          bio: typeof data.bio === 'string' && data.bio.trim() ? data.bio : prev.bio,
+          rate: typeof data.rate === 'string' && data.rate.trim() ? data.rate : prev.rate,
+        }));
+      }
+    }, (err) => {
+      console.warn('Could not sync hero doc, using defaults:', err);
     });
     const unsubContact = onSnapshot(doc(db, 'portfolio_content', 'contact'), (docSnap) => {
-      if (docSnap.exists()) setContact(docSnap.data() as any);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Record<string, any>;
+        setContact(prev => ({
+          ...prev,
+          ...data,
+          socials: {
+            ...prev.socials,
+            ...(data.socials && typeof data.socials === 'object' ? data.socials : {})
+          }
+        }));
+      }
+    }, (err) => {
+      console.warn('Could not sync contact doc, using defaults:', err);
     });
     const unsubUpwork = onSnapshot(doc(db, 'marketplace_items', 'upwork_config'), (docSnap) => {
       if (docSnap.exists()) {
@@ -83,6 +110,8 @@ export default function Portfolio() {
           setHero(prev => ({ ...prev, rate: `$${data.hourlyRate}/hr` }));
         }
       }
+    }, (err) => {
+      console.warn('Could not sync upwork_config, using defaults:', err);
     });
     return () => {
       unsubHero();
@@ -357,7 +386,8 @@ export default function Portfolio() {
 
     // --- 6. ScrollTriggers for active nav highlighting (top to bottom) ---
     navLinks.forEach((link) => {
-      const sectionEl = document.querySelector(link.href) as HTMLElement | null;
+      const targetId = link.href.startsWith('#') ? link.href.slice(1) : link.href;
+      const sectionEl = document.getElementById(targetId);
       if (sectionEl) {
         ScrollTrigger.create({
           trigger: sectionEl,
@@ -638,7 +668,7 @@ export default function Portfolio() {
           >
             <div className="flex items-center gap-3">
               <a
-                href={contact.socials.github || "https://github.com/hicham-hmidani"}
+                href={safeHref(contact.socials?.github) || "https://github.com/hicham-hmidani"}
                 target="_blank"
                 rel="noreferrer"
                 className="p-2.5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] hover:text-[#FF4F00] hover:border-[#FF4F00] transition-colors"
@@ -647,7 +677,7 @@ export default function Portfolio() {
                 <Github className="w-4 h-4" />
               </a>
               <a
-                href={contact.socials.linkedin || "https://linkedin.com/in/hicham-hmidani-b55a5521b/"}
+                href={safeHref(contact.socials?.linkedin) || "https://linkedin.com/in/hicham-hmidani-b55a5521b/"}
                 target="_blank"
                 rel="noreferrer"
                 className="p-2.5 bg-[#F7F7F8] border border-[rgba(10,10,10,0.16)] text-[#0A0A0A] hover:text-[#FF4F00] hover:border-[#FF4F00] transition-colors"
@@ -683,8 +713,8 @@ export default function Portfolio() {
               className="relative z-10 w-full h-full overflow-hidden border border-[rgba(10,10,10,0.16)] bg-[#F7F7F8] shadow-sm will-change-transform"
             >
               <img
-                src="https://avatars.githubusercontent.com/u/112251991?v=4"
-                alt={hero.name}
+                src={safeHref(hero.image?.url) || "https://avatars.githubusercontent.com/u/112251991?v=4"}
+                alt={hero.image?.alt || hero.name}
                 className="w-full h-full object-cover grayscale contrast-105 hover:grayscale-0 transition-all duration-700"
                 referrerPolicy="no-referrer"
               />
@@ -791,7 +821,7 @@ export default function Portfolio() {
           <div className="pt-10 pb-8 overflow-hidden select-none">
             <h2
               ref={footerWordmarkRef}
-              className="text-[8.5vw] sm:text-[9vw] lg:text-[9.2vw] font-bold tracking-tighter text-[#0A0A0A] leading-[0.88] whitespace-nowrap will-change-transform uppercase"
+              className="text-[clamp(1.75rem,7.1vw,6.25rem)] font-bold tracking-tighter text-[#0A0A0A] leading-[0.9] whitespace-nowrap will-change-transform uppercase"
             >
               Hicham Hmidani
             </h2>

@@ -14,7 +14,6 @@ import {
   Inbox,
   Calendar,
   Search,
-  ChevronRight,
   Circle
 } from 'lucide-react';
 import { 
@@ -28,6 +27,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
+import ConfirmDialog from '../admin/ui/ConfirmDialog';
 
 interface Message {
   id: string;
@@ -35,13 +35,32 @@ interface Message {
   from_email: string;
   message: string;
   read: boolean;
-  receivedAt: Timestamp;
+  receivedAt?: Timestamp | null;
+}
+
+function toDateSafe(ts: unknown): Date | null {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof (ts as Timestamp)?.toDate === 'function') {
+    return (ts as Timestamp).toDate();
+  }
+  return null;
+}
+
+function buildMailtoReply(email: string, name: string): string {
+  const safeEmail = (email || '').trim();
+  const safeName = (name || 'there').trim();
+  const subject = encodeURIComponent('Re: Portfolio Inquiry');
+  const body = encodeURIComponent(`Hi ${safeName},\n\n`);
+  return `mailto:${safeEmail}?subject=${subject}&body=${body}`;
 }
 
 export default function MessagesInbox() {
+  const [authReady, setAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
@@ -49,14 +68,21 @@ export default function MessagesInbox() {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
         navigate('/admin/login');
+      } else {
+        setAuthReady(true);
       }
     });
+    return () => unsubscribeAuth();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!authReady) return;
 
     const q = query(collection(db, "contact_messages"), orderBy("receivedAt", "desc"));
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const msgs = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
       })) as Message[];
       setMessages(msgs);
       setLoading(false);
@@ -67,10 +93,9 @@ export default function MessagesInbox() {
     });
 
     return () => {
-      unsubscribeAuth();
       unsubscribeMessages();
     };
-  }, [navigate]);
+  }, [authReady]);
 
   const selectedMessage = useMemo(() => 
     messages.find(m => m.id === selectedMessageId), 
@@ -79,23 +104,32 @@ export default function MessagesInbox() {
 
   const stats = useMemo(() => {
     const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     return {
       total: messages.length,
       unread: messages.filter(m => !m.read).length,
-      thisWeek: messages.filter(m => m.receivedAt.toDate() >= startOfWeek).length,
-      thisMonth: messages.filter(m => m.receivedAt.toDate() >= startOfMonth).length,
+      thisWeek: messages.filter(m => {
+        const d = toDateSafe(m.receivedAt);
+        return d ? d >= startOfWeek : false;
+      }).length,
+      thisMonth: messages.filter(m => {
+        const d = toDateSafe(m.receivedAt);
+        return d ? d >= startOfMonth : false;
+      }).length,
     };
   }, [messages]);
 
   const filteredMessages = useMemo(() => 
-    messages.filter(m => 
-      m.from_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.from_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.message.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
+    messages.filter(m => {
+      const q = searchQuery.toLowerCase();
+      return (
+        (m.from_name || '').toLowerCase().includes(q) ||
+        (m.from_email || '').toLowerCase().includes(q) ||
+        (m.message || '').toLowerCase().includes(q)
+      );
+    }),
     [messages, searchQuery]
   );
 
@@ -111,8 +145,11 @@ export default function MessagesInbox() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this message?")) return;
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+
     try {
       await deleteDoc(doc(db, "contact_messages", id));
       if (selectedMessageId === id) setSelectedMessageId(null);
@@ -130,8 +167,9 @@ export default function MessagesInbox() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    const date = timestamp.toDate();
+  const formatDate = (timestamp?: Timestamp | null) => {
+    const date = toDateSafe(timestamp);
+    if (!date) return 'Just now';
     const now = new Date();
     if (date.toDateString() === now.toDateString()) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -152,13 +190,13 @@ export default function MessagesInbox() {
       <Toaster position="top-right" />
       
       {/* Header */}
-      <header className="bg-[#111827] border-b border-slate-800 px-8 py-4 flex-shrink-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="bg-[#111827] border-b border-slate-800 px-4 sm:px-8 py-4 flex-shrink-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link to="/admin/dashboard" className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
               <ArrowLeft className="w-5 h-5 text-slate-400" />
             </Link>
-            <h1 className="text-xl font-bold">Messages Inbox</h1>
+            <h1 className="text-lg sm:text-xl font-bold">Messages Inbox</h1>
           </div>
           
           {/* Stats Bar */}
@@ -182,8 +220,8 @@ export default function MessagesInbox() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel: Message List */}
-        <aside className="w-full md:w-[400px] bg-[#111827] border-r border-slate-800 flex flex-col flex-shrink-0">
+        {/* Left Panel: Message List (hidden on < md when a message is selected) */}
+        <aside className={`${selectedMessageId ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] lg:w-[400px] bg-[#111827] border-r border-slate-800 flex-col flex-shrink-0`}>
           <div className="p-4 border-b border-slate-800">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -207,22 +245,23 @@ export default function MessagesInbox() {
               filteredMessages.map((msg) => (
                 <button
                   key={msg.id}
+                  type="button"
                   onClick={() => handleSelectMessage(msg.id)}
                   className={`w-full text-left p-4 border-b border-slate-800/50 transition-all hover:bg-slate-800/50 relative group ${selectedMessageId === msg.id ? 'bg-teal-500/5 border-l-4 border-l-teal-500' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-1">
                     <span className={`text-sm font-bold truncate pr-4 ${!msg.read ? 'text-white' : 'text-slate-400'}`}>
-                      {msg.from_name}
+                      {msg.from_name || 'Unknown Sender'}
                     </span>
                     <span className="text-[10px] text-slate-500 whitespace-nowrap">
                       {formatDate(msg.receivedAt)}
                     </span>
                   </div>
                   <div className="text-xs text-slate-500 truncate mb-1">
-                    {msg.from_email}
+                    {msg.from_email || 'No email'}
                   </div>
                   <div className="text-xs text-slate-400 line-clamp-1">
-                    {msg.message}
+                    {msg.message || ''}
                   </div>
                   
                   {!msg.read && (
@@ -237,22 +276,32 @@ export default function MessagesInbox() {
         </aside>
 
         {/* Right Panel: Message View */}
-        <main className="flex-1 bg-[#0a0f1e] overflow-y-auto p-8">
+        <main className={`${selectedMessageId ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-[#0a0f1e] overflow-y-auto p-4 sm:p-8`}>
           {selectedMessage ? (
-            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="max-w-4xl w-full mx-auto space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+              <button
+                type="button"
+                onClick={() => setSelectedMessageId(null)}
+                className="md:hidden inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-slate-400 hover:text-white"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Inbox
+              </button>
+
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500">
+                  <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 shrink-0">
                     <User className="w-6 h-6" />
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold">{selectedMessage.from_name}</h2>
-                    <p className="text-sm text-slate-500">{selectedMessage.from_email}</p>
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-bold truncate">{selectedMessage.from_name || 'Unknown Sender'}</h2>
+                    <p className="text-sm text-slate-500 truncate">{selectedMessage.from_email}</p>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <button 
+                    type="button"
                     onClick={() => handleToggleRead(selectedMessage.id, selectedMessage.read)}
                     className={`p-2 rounded-lg transition-all ${selectedMessage.read ? 'text-slate-400 hover:text-white' : 'text-teal-500 hover:bg-teal-500/10'}`}
                     title={selectedMessage.read ? "Mark as unread" : "Mark as read"}
@@ -260,14 +309,15 @@ export default function MessagesInbox() {
                     <CheckCircle2 className={`w-5 h-5 ${selectedMessage.read ? '' : 'fill-current opacity-20'}`} />
                   </button>
                   <a 
-                    href={`mailto:${selectedMessage.from_email}?subject=Re: Portfolio Inquiry&body=Hi ${selectedMessage.from_name},%0D%0A%0D%0A`}
+                    href={buildMailtoReply(selectedMessage.from_email, selectedMessage.from_name)}
                     className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all"
                     title="Reply"
                   >
                     <Reply className="w-5 h-5" />
                   </a>
                   <button 
-                    onClick={() => handleDelete(selectedMessage.id)}
+                    type="button"
+                    onClick={() => setDeleteTargetId(selectedMessage.id)}
                     className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                     title="Delete"
                   >
@@ -276,11 +326,11 @@ export default function MessagesInbox() {
                 </div>
               </div>
 
-              <div className="bg-[#111827]/50 border border-slate-800 rounded-3xl p-8 space-y-6">
-                <div className="flex items-center gap-6 text-xs text-slate-500 border-b border-slate-800 pb-6">
+              <div className="bg-[#111827]/50 border border-slate-800 rounded-3xl p-5 sm:p-8 space-y-6">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-slate-500 border-b border-slate-800 pb-6">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    Received: {selectedMessage.receivedAt.toDate().toLocaleString()}
+                    Received: {toDateSafe(selectedMessage.receivedAt)?.toLocaleString() || 'Pending sync'}
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
@@ -288,18 +338,18 @@ export default function MessagesInbox() {
                   </div>
                 </div>
 
-                <div className="text-slate-300 leading-relaxed whitespace-pre-wrap text-lg">
+                <div className="text-slate-300 leading-relaxed whitespace-pre-wrap text-base sm:text-lg break-words">
                   {selectedMessage.message}
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <a 
-                  href={`mailto:${selectedMessage.from_email}?subject=Re: Portfolio Inquiry&body=Hi ${selectedMessage.from_name},%0D%0A%0D%0A`}
+                  href={buildMailtoReply(selectedMessage.from_email, selectedMessage.from_name)}
                   className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-teal-500/20"
                 >
                   <Reply className="w-5 h-5" />
-                  Reply to {selectedMessage.from_name.split(' ')[0]}
+                  Reply to {(selectedMessage.from_name || 'Sender').split(' ')[0]}
                 </a>
               </div>
             </div>
@@ -312,6 +362,16 @@ export default function MessagesInbox() {
           )}
         </main>
       </div>
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTargetId)}
+        title="Delete Message"
+        message="Are you sure you want to delete this inquiry? This action cannot be undone."
+        confirmLabel="Delete Message"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }
