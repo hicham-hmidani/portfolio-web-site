@@ -53,7 +53,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import toast, { Toaster } from 'react-hot-toast';
-import { educationDefaults, certificationsDefaults, EducationItem, CertificationItem } from '../content/educationDefaults';
+import {
+  educationDefaults,
+  certificationsDefaults,
+  EducationItem,
+  CertificationItem,
+  mergeCertificationsWithDefaults,
+} from '../content/educationDefaults';
 
 // --- Sortable Education Row ---
 function SortableEduRow({ item, onEdit, onDelete, onToggleVisible }: { item: EducationItem; onEdit: (item: EducationItem) => void; onDelete: (id: string) => void; onToggleVisible: (id: string) => void }) {
@@ -180,7 +186,10 @@ export default function EducationManager() {
 
     const unsubCert = onSnapshot(doc(db, 'portfolio_content', 'certifications'), (snap) => {
       if (snap.exists() && snap.data().items) {
-        setCertificationsList(snap.data().items);
+        const snapData = snap.data();
+        setCertificationsList(
+          mergeCertificationsWithDefaults(snapData.items, snapData.credentialSyncVersion)
+        );
       } else {
         setCertificationsList(certificationsDefaults.items);
       }
@@ -211,10 +220,31 @@ export default function EducationManager() {
   const handleSaveCertifications = async (items: CertificationItem[]) => {
     setSaving(true);
     try {
-      await saveSection('certifications', { items }, {
-        notify: true,
-        successMessage: 'Certifications updated successfully'
+      const sanitizedItems = items.map((item) => {
+        const clean: CertificationItem = {
+          id: item.id,
+          title: item.title,
+          issuer: item.issuer,
+          platform: item.platform,
+          date: item.date,
+          verifyUrl: item.verifyUrl || '',
+          group: item.group,
+          visible: item.visible !== false,
+        };
+        if (item.documentUrl?.trim()) clean.documentUrl = item.documentUrl.trim();
+        if (item.previewUrl?.trim()) clean.previewUrl = item.previewUrl.trim();
+        if (item.credentialId?.trim()) clean.credentialId = item.credentialId.trim();
+        if (item.summary?.trim()) clean.summary = item.summary.trim();
+        return clean;
       });
+      await saveSection(
+        'certifications',
+        { items: sanitizedItems, credentialSyncVersion: 2 },
+        {
+          notify: true,
+          successMessage: 'Certifications updated successfully',
+        }
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -614,7 +644,7 @@ export default function EducationManager() {
       {/* Certification Modal */}
       {isCertModalOpen && editingCert && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-white">
                 {certificationsList.some(c => c.id === editingCert.id) ? 'Edit Certification' : 'Add Certification'}
@@ -627,8 +657,27 @@ export default function EducationManager() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!isValidUrlInput(editingCert.verifyUrl)) {
-                  toast.error('Verification URL must start with https://');
+                const hasDocument = Boolean(editingCert.documentUrl?.trim());
+                if (!isValidUrlInput(editingCert.verifyUrl, { allowEmpty: hasDocument })) {
+                  toast.error(
+                    hasDocument
+                      ? 'Verification URL must start with https:// (or leave blank when a document is attached)'
+                      : 'Verification URL must start with https://'
+                  );
+                  return;
+                }
+                if (
+                  editingCert.documentUrl &&
+                  !isValidUrlInput(editingCert.documentUrl, { allowEmpty: true, allowLocalAsset: true })
+                ) {
+                  toast.error('Document path must start with /assets/ or https://');
+                  return;
+                }
+                if (
+                  editingCert.previewUrl &&
+                  !isValidUrlInput(editingCert.previewUrl, { allowEmpty: true, allowLocalAsset: true })
+                ) {
+                  toast.error('Preview image path must start with /assets/ or https://');
                   return;
                 }
 
@@ -696,24 +745,84 @@ export default function EducationManager() {
                   <label className="text-xs font-mono uppercase text-slate-400">Group / Category</label>
                   <select
                     value={editingCert.group}
-                    onChange={(e) => setEditingCert({ ...editingCert, group: e.target.value as 'Google' | 'Specialized' })}
+                    onChange={(e) =>
+                      setEditingCert({
+                        ...editingCert,
+                        group: e.target.value as 'Google' | 'Specialized' | 'Internship',
+                      })
+                    }
                     className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
                   >
                     <option value="Google">Google</option>
                     <option value="Specialized">Specialized</option>
+                    <option value="Internship">Internship</option>
                   </select>
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-mono uppercase text-slate-400">
+                    Credential ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCert.credentialId || ''}
+                    onChange={(e) => setEditingCert({ ...editingCert, credentialId: e.target.value })}
+                    placeholder="e.g. 9f783d2 or 3BCNC5V2AFSE"
+                    className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-mono uppercase text-slate-400">
+                    Verification URL (https://)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCert.verifyUrl}
+                    onChange={(e) => setEditingCert({ ...editingCert, verifyUrl: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-mono uppercase text-slate-400">Verification URL (https://)</label>
+                <label className="text-xs font-mono uppercase text-slate-400">
+                  Document Asset Path or URL (/assets/... or https://)
+                </label>
                 <input
                   type="text"
-                  value={editingCert.verifyUrl}
-                  onChange={(e) => setEditingCert({ ...editingCert, verifyUrl: e.target.value })}
-                  placeholder="https://..."
+                  value={editingCert.documentUrl || ''}
+                  onChange={(e) => setEditingCert({ ...editingCert, documentUrl: e.target.value })}
+                  placeholder="/assets/aistudio/certificate.pdf"
                   className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
-                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-mono uppercase text-slate-400">
+                  Preview Image Path or URL (Optional PNG)
+                </label>
+                <input
+                  type="text"
+                  value={editingCert.previewUrl || ''}
+                  onChange={(e) => setEditingCert({ ...editingCert, previewUrl: e.target.value })}
+                  placeholder="/assets/aistudio/preview.png"
+                  className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-mono uppercase text-slate-400">
+                  Summary / Internship Focus (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingCert.summary || ''}
+                  onChange={(e) => setEditingCert({ ...editingCert, summary: e.target.value })}
+                  placeholder="Brief description of program scope or achievements..."
+                  className="w-full mt-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500"
                 />
               </div>
 
